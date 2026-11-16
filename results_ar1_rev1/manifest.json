@@ -1,0 +1,63 @@
+{
+  "B": 500,
+  "K": 100,
+  "T": 1000,
+  "mu_star": 0.3,
+  "separation": 0.1,
+  "scale": 0.10667385033281394,
+  "c0": 2,
+  "q_grid": [
+    0.0,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.45
+  ],
+  "delta_grid": [
+    0.01,
+    0.025,
+    0.05,
+    0.1,
+    0.2,
+    0.3
+  ],
+  "master_seed": 2026091701,
+  "stationary_terms": 65,
+  "confidence_band_multiplier": 1.9647389829672648,
+  "contents": "Terminal cumulative regret relative to the best expert in hindsight, for each replication.",
+  "files": {
+    "q_0.00.npz": "080ad6e29947f462aaf1619e0c03f1fd3d8b7663a62c727c358c4e4fd5bb697d",
+    "q_0.10.npz": "71c35b3e9aa91dddf006d152095311e19acc42fb30d7d05abd4baebd1615975a",
+    "q_0.20.npz": "5ff786f7ceda2e33daeaa4161a9492458cba3186bf02c9cd5e6ea6b87b75de16",
+    "q_0.30.npz": "04ab3b9c4c07acf3b5153d1f213f8968ef9153a69ac11f1cadbd51c6424c0b24",
+    "q_0.40.npz": "9b1f8e2619055ae021607e4c5a13d4854d0da1c52b5033afa935660aeb8ee7a7",
+    "q_0.45.npz": "432c2bfa098e87ffd8f7a20c61380786517c5be76beae1ae3cd9b8ebdf253d75"
+  },
+  "original_archives": {
+    "q_0.00.npz": {
+      "sha256": "e089d35500b4f3ca56c02279ed82692b9b10c73f77a90a4965d936b3dfc4f79c",
+      "record_sha256": "48e72e56398501e6bf266d2e684a37d5684853940d77c0a5009ee3a06f78a379"
+    },
+    "q_0.10.npz": {
+      "sha256": "c9579ae9711bb9c8bdaec4f187e52251f616194077b903ccb0e6bfff7f3c5bca",
+      "record_sha256": "81e5cfb671272055f3414a05de4543c9396e869973da63c2fca43240889b5cc5"
+    },
+    "q_0.20.npz": {
+      "sha256": "d0c5ff5d0084a0d541581463d2d269f4cad56d2a75642a7bbd562e9e773ecf07",
+      "record_sha256": "62b1536a84e7c3426776f33a797debd33be28f3d78a4c5fbbb7f05ea62c5fc1b"
+    },
+    "q_0.30.npz": {
+      "sha256": "8a29501503c422a5528651db2c4135adff9a425e155b866123e54f78246a40e1",
+      "record_sha256": "4810f0e7b9efbe4651c885da157727e477524db460b07e47293632cf12a45229"
+    },
+    "q_0.40.npz": {
+      "sha256": "440010059321adabc8e1469916b5012afa2281c0c4adeb27487b05b05fd9db72",
+      "record_sha256": "1a9cba980ad779d98eddafec64e3904f98841f3e77953dfa01f7cf887c24388b"
+    },
+    "q_0.45.npz": {
+      "sha256": "0463c416afcf2d5a7be9c20cee698291059f23786db9e665f8046674b7b29ef0",
+      "record_sha256": "7144ac69a5c81ef4bcd77cee242d25e2e44f879700ecd5de8ff20196963b0852"
+    }
+  }
+}

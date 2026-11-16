@@ -1,0 +1,47 @@
+{
+  "dataset": "Medium-MD",
+  "B": 100,
+  "K": 1000,
+  "T": 48,
+  "grid": [
+    41,
+    41
+  ],
+  "original_ensemble_grid": [
+    5,
+    5
+  ],
+  "first_draw_only": true,
+  "eta": 10000,
+  "c0": 10000,
+  "CV": "original ten-fold expanding-window objective, five validation quarters per fold",
+  "estimation": [
+    "1990Q1",
+    "2007Q4"
+  ],
+  "CV_sample": [
+    "1975Q1",
+    "2007Q4"
+  ],
+  "evaluation": [
+    "2008Q1",
+    "2019Q4"
+  ],
+  "corrected_aggregations": true,
+  "files": {
+    "smfesn_a.npz": "d38c7f8c09d8b89f90f90b8c15fea41ed1b5fab1905f186f1296c956db546a8d",
+    "smfesn_b.npz": "f2ee8780629148184f299056d8d7056f344788f2c1cd876c4f925fd7c5e83f66",
+    "mmfesn_a.npz": "4ac4720dbf64b0116c49e7da0c313b0abec036b391348b0a9ea474aa39b257a6",
+    "mmfesn_b.npz": "f3fe52e93c78cbb50968f74f840467f1c4965835e0483b37ba785a3befc90641",
+    "timing_history.json": "516c22e63d30ad264ab6a97867d58b87f1c9e7ced87eaf474f848b746d0e558c",
+    "timing_summary.json": "f4542a96681e77aa6effc381946da320ab8b6cf55eb1b8d4f2940b1868984836"
+  },
+  "b100_dependencies": {
+    "smfesn_a_alpha-lambdaRP.npz": "c0e190b5571827f2d727ed252fae2781e2fcafbf446102ccbd63233ef8391906",
+    "smfesn_b_alpha-lambdaRP.npz": "9c6517c43ce1da2b13abfab7510525fbea55d3018e894b22f7ce1d040bdcf9c5",
+    "mmfesn_a_alpha-lambdaRP.npz": "d4915e3acdc6fcf7699dbbc57b5f6e650a081318a74d80cbc5a1086fdfb799d0",
+    "mmfesn_b_alpha-lambdaRP.npz": "bcfe32dd1f76cf8e14a285ad432a8ff9d4e30f7deca303f52933c3f884286bc4",
+    "reservoir_seeds.npz": "a42a9821445b186154102348d8b171f8cd1dc137dfe68182552d69e116bd836b"
+  },
+  "full_expert_forecasts_included": false
+}

@@ -205,3 +205,22 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Licensed inputs and private/local research material (not part of this release)
+/data/preprocessed/
+/data/raw/
+/data/rawdata/
+/experiments/
+/output/
+/.vscode/
+/.idea/
+
+# New regeneration runs must not be confused with the supplied reference archives
+/results_b100_regenerated/
+/results_same_budget_regenerated/
+/results_same_budget_timing_new/
+/results_random_subset_regenerated/
+/results_ar1_regenerated/
+/figures_multistep_rev1/
+/figures_multistep_small_rev1/
+/tables_check/

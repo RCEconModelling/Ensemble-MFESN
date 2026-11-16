@@ -1,0 +1,50 @@
+{
+  "dataset": "Medium-MD",
+  "B": 100,
+  "K": 1000,
+  "T": 48,
+  "h": 1,
+  "forecast_sample": [
+    "2008Q1",
+    "2019Q4"
+  ],
+  "estimation_sample": [
+    "1990Q1",
+    "2007Q4"
+  ],
+  "cv_sample": [
+    "1975Q1",
+    "2007Q4"
+  ],
+  "cv_folds": 10,
+  "validation_quarters_per_fold": 5,
+  "eta": 10000,
+  "c0": 10000,
+  "rolling_window": 4,
+  "compact_only": true,
+  "expert_order": "draw, leak rate (where varied), ridge penalty (where assigned)",
+  "seed_note": "Original saved schedules; uint64. M-MFESN columns are monthly, daily. Within each reservoir A and C use the same seed.",
+  "runtime": {
+    "numpy": "1.26.4",
+    "pandas": "2.2.2"
+  },
+  "files": {
+    "smfesn_a_RP.npz": "e3c74fc57aa2e0696b1a16d79a16d5b690282115a678d39807da49853633c27b",
+    "smfesn_a_alphaRP.npz": "9abc7380656c5d8a13a727af01be0fc613b404c0412fb8edf03e459dc2568a3d",
+    "smfesn_a_lambdaRP.npz": "dc5893c002b58ce4094098123ea4f9fa624ee9457bcdb54faa49009c51a749ea",
+    "smfesn_a_alpha-lambdaRP.npz": "c0e190b5571827f2d727ed252fae2781e2fcafbf446102ccbd63233ef8391906",
+    "smfesn_b_RP.npz": "e1fcbb5c7549ccc9e0cc2214355889dcb2754d2b59ce2eb7a3806660286796ae",
+    "smfesn_b_alphaRP.npz": "23298093f98b16b0a3d3a7ad53ddbffe492b2cb4a8c3965f4f305366156c0377",
+    "smfesn_b_lambdaRP.npz": "77088e668cecb8577c7b77a070ffd817805196bfd6e18f1b099ca17220080bb3",
+    "smfesn_b_alpha-lambdaRP.npz": "9c6517c43ce1da2b13abfab7510525fbea55d3018e894b22f7ce1d040bdcf9c5",
+    "mmfesn_a_RP.npz": "a6b4516354e9aac5b9a2c5afb5065954cf906fa6bd688afb1159c6e4761d43a7",
+    "mmfesn_a_alphaRP.npz": "c10b945317e9cfad25b24748673ac35beab4bd2fbbfcaae25733626c4ad2f3dc",
+    "mmfesn_a_lambdaRP.npz": "197f1a994af8de4f60569b8a27944eb50dde900e1c85844adca5bdfcd1194c0c",
+    "mmfesn_a_alpha-lambdaRP.npz": "d4915e3acdc6fcf7699dbbc57b5f6e650a081318a74d80cbc5a1086fdfb799d0",
+    "mmfesn_b_RP.npz": "c08c37b47fc6e2d4d132d697cc49a1a8b7c245f1110af36f464695428e133e77",
+    "mmfesn_b_alphaRP.npz": "3164123eb176dcab6f21613ad148182e1ecb3220fe3e4566fb519cbdc1382131",
+    "mmfesn_b_lambdaRP.npz": "6f4ac0c5029d442c47efd82f5a5f7dfe8cfae123c17f7c7aa64c1485a3127185",
+    "mmfesn_b_alpha-lambdaRP.npz": "bcfe32dd1f76cf8e14a285ad432a8ff9d4e30f7deca303f52933c3f884286bc4",
+    "reservoir_seeds.npz": "a42a9821445b186154102348d8b171f8cd1dc137dfe68182552d69e116bd836b"
+  }
+}

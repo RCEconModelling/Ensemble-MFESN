@@ -1,0 +1,206 @@
+{
+  "dataset": "small-MD",
+  "B": 1,
+  "K": 1000,
+  "horizon": 1,
+  "evaluation_quarters": 48,
+  "estimation_period": [
+    "1990Q1",
+    "2007Q4"
+  ],
+  "validation_period": [
+    "1975Q1",
+    "2007Q4"
+  ],
+  "evaluation_period": [
+    "2008Q1",
+    "2019Q4"
+  ],
+  "monthly_inputs": [
+    "M1",
+    "M4",
+    "M5",
+    "M7",
+    "M11",
+    "M12",
+    "M14",
+    "M15"
+  ],
+  "daily_inputs": [
+    "D3"
+  ],
+  "eta": 10000,
+  "c0": 10000,
+  "RollMSE_window": 4,
+  "M_MFESN_A_daily_reservoir_seed": "candidate seed in both reservoirs",
+  "DFM": "Original Small-MD stock/almon models with 5 factors; verified 48-quarter forecasts.",
+  "per_expert_msfe_cache": "Recomputed over all 48 quarters.",
+  "date_labels": "GDP calendar-quarter labels after one-to-one quarter validation; numerical values preserved.",
+  "original_files_unchanged": true,
+  "hashes": {
+    "dataset2007_GDP_data.pkl": "c7ac0daa69b416e1272d60283f9e8dbd9f09a2c413c0ad88cc3194ceac0c5171",
+    "results_S__multistep_fixed_parameters.pkl": "fe312143fe42ded3e46193566681ef3f198874cf121e5625bbd7514ca91216b3",
+    "results_S__multistep_singleESN_A_fix_grid_seed.pkl": "fac6e61bdcf7377d273205315a384dbafa49694b3a2130e60eec67af6bddd19c",
+    "results_S__multistep_singleESN_B_fix_grid_seed.pkl": "5cc0dc17bf1c87591693f95d45a9d95bd3321ea55121ef385842b71462f239c7",
+    "results_S__multistep_multiESN_A_fix_grid_seed.pkl": "597a7f94c7e2c5de22253a37c7bfa562090151c35916def36d7aa2c8e6baabc4",
+    "results_S__multistep_multiESN_B_fix_grid_seed.pkl": "8e30210ecd6c419ef6d7a09c262dd8b99c9b12bad5307e2e022f90f2c3fde138",
+    "results_S__multistep_singleESN_A_fix_grid_seed_leak.pkl": "540a05beb4ac60e28ee80a63367e406ebad0ea5d469091b1baa5ff30eb4f279e",
+    "results_S__multistep_singleESN_B_fix_grid_seed_leak.pkl": "f1879fae2d1c41e52dabd209720b0de94cbb09cba761ea88312ac922e7c927dd",
+    "results_S__multistep_multiESN_A_fix_grid_seed_leak.pkl": "ec3f3938a64ab1b62ff453f110f2c05d61fab69d2a3834c67a70fdd34c2c80b9",
+    "results_S__multistep_multiESN_B_fix_grid_seed_leak.pkl": "c0367c06513c58cbf376f910472cd1ada6051906fbd94380b794d382002d0baf",
+    "results_S__multistep_singleESN_A_fix_grid_seed_lambda.pkl": "91c6a24c68b143b4b3195cfb56461f669b035a9329f69c1e5b60c9af0f7f75ac",
+    "results_S__multistep_singleESN_B_fix_grid_seed_lambda.pkl": "d0de6cf6fa335a6b5f6840a252aeb832d831e7d088d80048a1bdb5db38ec2497",
+    "results_S__multistep_multiESN_A_fix_grid_seed_lambda.pkl": "ec62c4db6e8e83a6f584070e009e4ab89c38580f7e1459b5810cda3d218fe8dc",
+    "results_S__multistep_multiESN_B_fix_grid_seed_lambda.pkl": "e2d3ca23dd69aba2dc2da81999e9cf8f83fa18a2d2766add5676b6bd14c3ea16",
+    "results_S__multistep_singleESN_A_fix_grid_seed_leak_lambda.pkl": "edb88cb219570dadd1059dbdd559a07459746a0fa6f683a706174dfe29960a7b",
+    "results_S__multistep_singleESN_B_fix_grid_seed_leak_lambda.pkl": "35b46df8a96add25de83496ee97028a077546ad59134d41cf0287305a3fcdd5f",
+    "results_S__multistep_multiESN_A_fix_grid_seed_leak_lambda.pkl": "570a570a497f1aafa91372a5a07b9feed41a48a85324baaa071b303de7041827",
+    "results_S__multistep_multiESN_B_fix_grid_seed_leak_lambda.pkl": "8ff64d1ac567f8bc4a6b7baecae7bae24bb6ccb3ace7232a4b3258108924582c"
+  },
+  "pools": [
+    {
+      "file": "results_S__multistep_singleESN_A_fix_grid_seed.pkl",
+      "model": "S-MFESN_A",
+      "construction": "rp",
+      "quarters": 48,
+      "experts": 1000,
+      "source_family": "Paired-seed B=1 archive",
+      "source_sha256": "6404015b5ad7535a1bfbf7f50afb91fa025f4ffa3fa0cebdf84993d40e484863"
+    },
+    {
+      "file": "results_S__multistep_singleESN_B_fix_grid_seed.pkl",
+      "model": "S-MFESN_B",
+      "construction": "rp",
+      "quarters": 48,
+      "experts": 1000,
+      "source_family": "Paired-seed B=1 archive",
+      "source_sha256": "8ba0dda9e900e11415779c19dc9ca3c3f6e3e8bb349c25e12897a0c7fb7939c8"
+    },
+    {
+      "file": "results_S__multistep_multiESN_A_fix_grid_seed.pkl",
+      "model": "M-MFESN_A",
+      "construction": "rp",
+      "quarters": 48,
+      "experts": 1000,
+      "source_family": "Paired-seed B=1 archive",
+      "source_sha256": "826484e31b99a3545d71a82dcf037dc5820a0e058dde6987b98b436103138046"
+    },
+    {
+      "file": "results_S__multistep_multiESN_B_fix_grid_seed.pkl",
+      "model": "M-MFESN_B",
+      "construction": "rp",
+      "quarters": 48,
+      "experts": 1000,
+      "source_family": "Paired-seed B=1 archive",
+      "source_sha256": "229cf0cb6b35e28457df4b6b79fc1f8ef3024d02a71536afc3c8b41beaea6d52"
+    },
+    {
+      "file": "results_S__multistep_singleESN_A_fix_grid_seed_leak.pkl",
+      "model": "S-MFESN_A",
+      "construction": "alpha",
+      "quarters": 48,
+      "experts": 1000,
+      "source_family": "Paired-seed B=1 archive",
+      "source_sha256": "fd98afa0e3fd2274b0c966590453a35505eba1eb3164a3ab36f740e041f92f96"
+    },
+    {
+      "file": "results_S__multistep_singleESN_B_fix_grid_seed_leak.pkl",
+      "model": "S-MFESN_B",
+      "construction": "alpha",
+      "quarters": 48,
+      "experts": 1000,
+      "source_family": "Paired-seed B=1 archive",
+      "source_sha256": "5068d6c7bcef2b92a708fbf344dd7b4113e895f7839a391a3069b61127267d16"
+    },
+    {
+      "file": "results_S__multistep_multiESN_A_fix_grid_seed_leak.pkl",
+      "model": "M-MFESN_A",
+      "construction": "alpha",
+      "quarters": 48,
+      "experts": 1000,
+      "source_family": "Paired-seed B=1 archive",
+      "source_sha256": "79c6dbcee3ca84c76fd9cb5b5290eab4f48b8f676895051c30447ff95860cb9f"
+    },
+    {
+      "file": "results_S__multistep_multiESN_B_fix_grid_seed_leak.pkl",
+      "model": "M-MFESN_B",
+      "construction": "alpha",
+      "quarters": 48,
+      "experts": 1000,
+      "source_family": "Paired-seed B=1 archive",
+      "source_sha256": "d51e8709483c60ea6f9a42c90e9229e940921af482b6afd936055f7c87b5c8ee"
+    },
+    {
+      "file": "results_S__multistep_singleESN_A_fix_grid_seed_lambda.pkl",
+      "model": "S-MFESN_A",
+      "construction": "lambda",
+      "quarters": 48,
+      "experts": 1000,
+      "source_family": "Fixed-grid B=1 archive",
+      "source_sha256": "560e4ce86144a4b4b9a503f909c43d2679f3b9d573e69a542ac77cd828e32f18"
+    },
+    {
+      "file": "results_S__multistep_singleESN_B_fix_grid_seed_lambda.pkl",
+      "model": "S-MFESN_B",
+      "construction": "lambda",
+      "quarters": 48,
+      "experts": 1000,
+      "source_family": "Fixed-grid B=1 archive",
+      "source_sha256": "4f6c84724f0015ffd045dd17347330295450dccde6fc243098fed43aeb1a4e1e"
+    },
+    {
+      "file": "results_S__multistep_multiESN_A_fix_grid_seed_lambda.pkl",
+      "model": "M-MFESN_A",
+      "construction": "lambda",
+      "quarters": 48,
+      "experts": 1000,
+      "source_family": "Fixed-grid B=1 archive",
+      "source_sha256": "a600c5a063090cb783bbb16f810d77fecf176a94b546971660fa69ee6ba3ebaf"
+    },
+    {
+      "file": "results_S__multistep_multiESN_B_fix_grid_seed_lambda.pkl",
+      "model": "M-MFESN_B",
+      "construction": "lambda",
+      "quarters": 48,
+      "experts": 1000,
+      "source_family": "Fixed-grid B=1 archive",
+      "source_sha256": "982eb1eb635c0bed3222aec65a73f7e256a47e9698112b8becba7e1a3a8d9a6f"
+    },
+    {
+      "file": "results_S__multistep_singleESN_A_fix_grid_seed_leak_lambda.pkl",
+      "model": "S-MFESN_A",
+      "construction": "alpha_lambda",
+      "quarters": 48,
+      "experts": 1000,
+      "source_family": "Fixed-grid B=1 archive",
+      "source_sha256": "4282fc75532f3c52a3d260a8d1f62d783321a396f8faef07f5870c64c871e901"
+    },
+    {
+      "file": "results_S__multistep_singleESN_B_fix_grid_seed_leak_lambda.pkl",
+      "model": "S-MFESN_B",
+      "construction": "alpha_lambda",
+      "quarters": 48,
+      "experts": 1000,
+      "source_family": "Fixed-grid B=1 archive",
+      "source_sha256": "b7c9907688dfd47e6fb9f92896a71f3af6c3f798e8e73c970cf55c500e10c105"
+    },
+    {
+      "file": "results_S__multistep_multiESN_A_fix_grid_seed_leak_lambda.pkl",
+      "model": "M-MFESN_A",
+      "construction": "alpha_lambda",
+      "quarters": 48,
+      "experts": 1000,
+      "source_family": "Fixed-grid B=1 archive",
+      "source_sha256": "1990261241b82ea38403080a8d4e6d4bc90116cb3bb12ce7306420801fe3b7dd"
+    },
+    {
+      "file": "results_S__multistep_multiESN_B_fix_grid_seed_leak_lambda.pkl",
+      "model": "M-MFESN_B",
+      "construction": "alpha_lambda",
+      "quarters": 48,
+      "experts": 1000,
+      "source_family": "Fixed-grid B=1 archive",
+      "source_sha256": "bc0a9a3cb40c1eb844ddf5c030a6e52623f280481a6720e9739d2dad404028d2"
+    }
+  ]
+}

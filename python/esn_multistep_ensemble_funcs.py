@@ -558,12 +558,12 @@ def multiESN_A_multistep_fix_grid_seed(
             A=stateMatrixGenerator(
                 (reservoir_size[1], reservoir_size[1]), 
                 dist='sparse_normal', sparsity=10/reservoir_size[1], normalize='eig',
-                seed=20220623
+                seed=seed
             ),
             C=stateMatrixGenerator(
                 (reservoir_size[1], input_size[1]), 
                 dist='sparse_uniform', sparsity=10/reservoir_size[1], normalize='norm2',
-                seed=20220623
+                seed=seed
             ),
             rho=0.5,
             gamma=0.5,
@@ -780,12 +780,12 @@ def multiESN_A_multistep_fix_grid_seed_leak(
                 A=stateMatrixGenerator(
                     (reservoir_size[1], reservoir_size[1]), 
                     dist='sparse_normal', sparsity=10/reservoir_size[1], normalize='eig',
-                    seed=20220623
+                    seed=seed
                 ),
                 C=stateMatrixGenerator(
                     (reservoir_size[1], input_size[1]), 
                     dist='sparse_uniform', sparsity=10/reservoir_size[1], normalize='norm2',
-                    seed=20220623
+                    seed=seed
                 ),
                 rho=0.5,
                 gamma=0.5,
