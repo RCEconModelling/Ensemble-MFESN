@@ -194,7 +194,7 @@ def dec_hedge_forecast(forecasts, losses, h=1, c0=2.0):
     T, K = forecasts_array.shape
 
     # Calculate decreasing learning rates (for default choice, see Chernov and Zhdanov, 2010)
-    learning_rates = c0 * np.sqrt(np.log(K) / (np.arange(1, T+1).reshape(-1, 1)))
+    learning_rates = c0 * np.sqrt(np.log(K) / (np.arange(2, T+2).reshape(-1, 1)))
     
     # Calculate cumulative weight updates
     cumulative_loss = np.cumsum(losses_array, axis=0)
@@ -280,6 +280,9 @@ def adahedge_forecast(forecasts, losses, h=1):
 
     if not np.array_equal(forecasts_index, losses_index):
         raise ValueError("Forecasts and losses must have the same index.")
+
+    if h != 1:
+        raise ValueError("This implementation is for h=1 only.")
     
     T, K = forecasts_array.shape
 
@@ -295,41 +298,42 @@ def adahedge_forecast(forecasts, losses, h=1):
     hedge_loss = np.zeros((T, 1))
 
     # Initial update
+    learning_rate[0] = np.inf
     hedge_loss[0] = np.sum(weights[0, :] * losses_array[0, :])
     M[0] = min_cum_loss[0]
     nabla[0] = np.maximum(0, hedge_loss[0] - M[0])  # Initial mixability gap
 
-    # Update weights based on past performance
+    # Mixing function
+    #   See de Rooij et al. (2014), Figure 1.
+    def mix(eta, L):
+        min_L = np.min(L)
+        if np.isinf(eta):
+            weights = 1.0 * (L == min_L)
+        else:
+            weights = np.exp(-eta * (L - min_L))
+        sum_weights = np.sum(weights)
+        weights /= sum_weights
+        M = min_L - np.log(sum_weights / K) / eta
+        return weights, M
+
+    # Update weights based on mixability gap
+    #   See de Rooij et al. (2014), Figure 1.
     for t in range(1, T):
-        if t < h:
-            # continue
+        # Update learning rate
+        if nabla[t-1, 0] > 0:
+            learning_rate[t] = np.log(K) / nabla[t-1, 0]
+        else:
             learning_rate[t] = np.inf
-        else:
-            if nabla[t-h] == 0:
-                # Stay with FTL weights 
-                learning_rate[t] = np.inf  # Set to infinity if nabla is zero
-                v_0 = 1.0 * np.isclose(cumulative_loss[t-h,:], min_cum_loss[t-h,:], atol=1e-9)
-            else:
-                # Update learning rate and weights 
-                learning_rate[t] = np.log(K) / nabla[t-h]
-                v_0 = np.exp(-learning_rate[t] * (cumulative_loss[t-h, :] - min_cum_loss[t-h, :]))
-                
-            weights[t, :] =  v_0 / np.sum(v_0)
 
-            # Update mixability gap and M (using original update)
-            # v_1 = np.exp(-learning_rate * (cumulative_loss[t-h+1, :] - min_cum_loss[t-h+1, :]))
-            # w_1 = v_1 / np.sum(v_1)
-            # M[t] = min_cum_loss[t] - np.log(np.sum(v_1) / K) / learning_rate
-            # l_1 = np.sum(w_1 * losses_array[t, :])
-            # nabla[t] = nabla[t-1] + np.maximum(0, (l_1 - (M[t] - M[t-1])))
+        # Current weights
+        w_t, M_t0 = mix(learning_rate[t], cumulative_loss[t-1, :])
+        weights[t, :] = w_t
 
-        # Update mixability gap and M (simple upper bound update, see Lemma 2 in de Rooij et al., 2014)
+        # Compute mix loss using current weights
         hedge_loss[t] = np.sum(weights[t, :] * losses_array[t, :])
-        if learning_rate[t] == np.inf:
-            M[t] = min_cum_loss[t]
-        else:
-            M[t] = min_cum_loss[t] - np.log(np.sum(v_0) / K) / learning_rate[t]
-        nabla[t] = nabla[t-1] + np.maximum(0, (hedge_loss[t] - (M[t] - M[t-1])))
+        _, M_t1 = mix(learning_rate[t], cumulative_loss[t, :])
+        delta_t = np.maximum(0, hedge_loss[t] - (M_t1 - M_t0))  # Mixability gap
+        nabla[t] = nabla[t-1] + delta_t
 
     # Calculate weighted forecast
     comb_forecast = np.sum(forecasts_array * weights, axis=1)

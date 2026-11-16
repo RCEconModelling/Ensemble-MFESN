@@ -34,11 +34,12 @@ from newToolbox_ESN_Multi import ESNMultiFrequency
 from data_funcs import *
 from comb_multistep_funcs import *
 from esn_multistep_ensemble_funcs import *
+from esn_multistep_fixed_lambda_funcs import *
 
 #region // GLOBAL SETTINGS ------------------------------------
 
-FORECAST_STEPS = 8
-OUTPUT_STEPS = [1, 2, 4, 8]
+FORECAST_STEPS = 1 # h=1: all 48 quarters, 2008Q1--2019Q4
+OUTPUT_STEPS = [1, ] #[1, 2, 4, 8]
 ESN_MATRIX_RESAMPLES = 1000 # set this to 1000 for paper
 
 # Only generate plots (need to have results saved)?
@@ -60,9 +61,14 @@ if not PATH_PREFIX is None:
 
 PATH_DATA = os.path.join(PATH_WD, "data", "preprocessed")
 PATH_DFM = os.path.join(PATH_WD, "data", "dfm_medium")
-PATH_FIGURES = os.path.join(PATH_WD, "figures_multistep")
-PATH_RESULTS = os.path.join(PATH_WD, "results")
-PATH_EXPORTS = os.path.join(PATH_WD, "exports")
+PATH_FIGURES = os.path.join(PATH_WD, "figures_multistep_rev1")
+PATH_RESULTS = os.path.join(PATH_WD, "results_rev1") # Original results/ is retained.
+PATH_EXPORTS = os.path.join(PATH_WD, "exports_rev1")
+
+if SAVE_RESULTS:
+    os.makedirs(PATH_RESULTS, exist_ok=True)
+if SAVE_PLOTS:
+    os.makedirs(PATH_FIGURES, exist_ok=True)
 
 # Utility functions
 def save_to_pickle(object, filename):
@@ -99,105 +105,107 @@ def plt_xaxis_marker(x, y=None, **kwargs):
 
 #region // DATA WRANGLING -----------------------------------
 
-print("\n\n// PREPARING DATA -----------------------------------\n")
+# Predictor preparation is only needed when generating forecasts.
+if DO_FORECASTS:
+    print("\n\n// PREPARING DATA -----------------------------------\n")
 
-# Sample dates
-startSampleDate = pd.to_datetime('1990-01-01')
-endSampleDate   = pd.to_datetime('2019-12-31')
+    # Sample dates
+    startSampleDate = pd.to_datetime('1990-01-01')
+    endSampleDate   = pd.to_datetime('2019-12-31')
 
-# Check data availability
-preproc_data_filled = pd.read_csv(
-    os.path.join(PATH_DATA, 'fullsample_output_filled_data.csv'),
-    parse_dates = ["Date"]
-).set_index("Date")
+    # Check data availability
+    preproc_data_filled = pd.read_csv(
+        os.path.join(PATH_DATA, 'fullsample_output_filled_data.csv'),
+        parse_dates = ["Date"]
+    ).set_index("Date")
 
-preproc_data_filled[~pd.isna(preproc_data_filled)] = 1
+    preproc_data_filled[~pd.isna(preproc_data_filled)] = 1
 
-preproc_data = pd.read_csv(
-    os.path.join(PATH_DATA, 'fullsample_output_data.csv'), 
-    parse_dates = ["Date"]
-).set_index("Date")
-data = preproc_data.loc[startSampleDate:endSampleDate]
+    preproc_data = pd.read_csv(
+        os.path.join(PATH_DATA, 'fullsample_output_data.csv'), 
+        parse_dates = ["Date"]
+    ).set_index("Date")
+    data = preproc_data.loc[startSampleDate:endSampleDate]
 
-# Non-filled data
-d_data = data[['D'+str(i) for i in range(1, 14)]].dropna()
-m_data = data[['M'+str(i) for i in range(1, 21)]].dropna()
-GDP_data = data[['Q1']].dropna()
+    # Non-filled data
+    d_data = data[['D'+str(i) for i in range(1, 14)]].dropna()
+    m_data = data[['M'+str(i) for i in range(1, 21)]].dropna()
+    GDP_data = data[['Q1']].dropna()
 
-# Interpolate non-filled daily data
-d_data_interp = pd.DataFrame()
-for c in d_data.columns:
-    d_data_interp = d_data_interp.join(
-        daily_begginingInterp(d_data[c], length=24, endOfMonth=False).rename(columns={0: c}),
-        how='right',
+    # Interpolate non-filled daily data
+    d_data_interp = pd.DataFrame()
+    for c in d_data.columns:
+        d_data_interp = d_data_interp.join(
+            daily_begginingInterp(d_data[c], length=24, endOfMonth=False).rename(columns={0: c}),
+            how='right',
+        )
+
+    # Filled data
+    m_data_prefill = preproc_data[['M'+str(i) for i in range(1, 21)]].loc[
+        (startSampleDate - pd.offsets.MonthBegin()):endSampleDate
+    ].dropna()
+    GDP_data_prefill = preproc_data[['Q1']].loc[
+        (startSampleDate - pd.offsets.QuarterBegin()):endSampleDate
+    ].dropna()
+
+    # Interpolate non-filled daily data to month end
+    d_data_fill_interp = pd.DataFrame()
+    for c in d_data.columns:
+        d_data_fill_interp = d_data_fill_interp.join(
+            daily_begginingInterp(d_data[c], length=24, endOfMonth=True).rename(columns={0: c}),
+            how='right',
+        )
+
+    # Aggregate interpolated daily to mean over 6 days windows
+    d_data_fill_interp_agg = daily_aggregateByIndex(d_data_fill_interp, window_size=6, endOfWindow=True)
+
+    # Shift monthly, quarterly data to solar end-of-month date
+    m_data_prefill.index = m_data_prefill.index + pd.offsets.MonthEnd(0)
+    GDP_data_prefill.index = GDP_data_prefill.index + pd.offsets.QuarterEnd(0)
+
+    # Re-align filled data to daily indexes, join dataframe
+    pre_index = pd.date_range(
+        start=startSampleDate - pd.offsets.YearBegin(), end=endSampleDate, freq='D'
+    )
+    pre_data_interp = pd.DataFrame(
+        data=np.full((len(pre_index), 1), np.nan), index=pre_index
     )
 
-# Filled data
-m_data_prefill = preproc_data[['M'+str(i) for i in range(1, 21)]].loc[
-    (startSampleDate - pd.offsets.MonthBegin()):endSampleDate
-].dropna()
-GDP_data_prefill = preproc_data[['Q1']].loc[
-    (startSampleDate - pd.offsets.QuarterBegin()):endSampleDate
-].dropna()
+    m_data_interp = pre_data_interp.join(m_data_prefill).ffill()
+    #GDP_data_interp = pre_data_interp.join(GDP_data_prefill).ffill()
 
-# Interpolate non-filled daily data to month end
-d_data_fill_interp = pd.DataFrame()
-for c in d_data.columns:
-    d_data_fill_interp = d_data_fill_interp.join(
-        daily_begginingInterp(d_data[c], length=24, endOfMonth=True).rename(columns={0: c}),
-        how='right',
-    )
+    # Make a new dataframe for filled explanatory variables
+    md_fill_data = d_data_fill_interp.join(m_data_interp.iloc[:,1:])#.join(GDP_data_interp.iloc[:,1:])
 
-# Aggregate interpolated daily to mean over 6 days windows
-d_data_fill_interp_agg = daily_aggregateByIndex(d_data_fill_interp, window_size=6, endOfWindow=True)
+    md_fill_agg_data = d_data_fill_interp_agg.join(m_data_interp.iloc[:,1:])
 
-# Shift monthly, quarterly data to solar end-of-month date
-m_data_prefill.index = m_data_prefill.index + pd.offsets.MonthEnd(0)
-GDP_data_prefill.index = GDP_data_prefill.index + pd.offsets.QuarterEnd(0)
+    # Shift target data
+    GDP_fill_data  = GDP_data
+    GDP_fill_data.index = GDP_fill_data.index + pd.offsets.QuarterEnd(0)
 
-# Re-align filled data to daily indexes, join dataframe
-pre_index = pd.date_range(
-    start=startSampleDate - pd.offsets.YearBegin(), end=endSampleDate, freq='D'
-)
-pre_data_interp = pd.DataFrame(
-    data=np.full((len(pre_index), 1), np.nan), index=pre_index
-)
+    # Define quick dataset creation functions
+    def getMediumDatasets(startDate, endDate, trainTestSplitDate=None):
+        return get_Medium_Datasets(
+            data={
+                "GDP_data": GDP_data,
+                "m_data": m_data,
+                "d_data_interp": d_data_interp,
+                "GDP_fill_data": GDP_fill_data,
+                "md_fill_data": md_fill_data,
+                "md_fill_agg_data": md_fill_agg_data,
+            },
+            startSampleDate=startDate,
+            endSampleDate=endDate,
+            trainTestSplitDate=trainTestSplitDate
+        )
 
-m_data_interp = pre_data_interp.join(m_data_prefill).ffill()
-#GDP_data_interp = pre_data_interp.join(GDP_data_prefill).ffill()
-
-# Make a new dataframe for filled explanatory variables
-md_fill_data = d_data_fill_interp.join(m_data_interp.iloc[:,1:])#.join(GDP_data_interp.iloc[:,1:])
-
-md_fill_agg_data = d_data_fill_interp_agg.join(m_data_interp.iloc[:,1:])
-
-# Shift target data
-GDP_fill_data  = GDP_data
-GDP_fill_data.index = GDP_fill_data.index + pd.offsets.QuarterEnd(0)
-
-# Define quick dataset creation functions
-def getMediumDatasets(startDate, endDate, trainTestSplitDate=None):
-    return get_Medium_Datasets(
-        data={
-            "GDP_data": GDP_data,
-            "m_data": m_data,
-            "d_data_interp": d_data_interp,
-            "GDP_fill_data": GDP_fill_data,
-            "md_fill_data": md_fill_data,
-            "md_fill_agg_data": md_fill_agg_data,
-        },
-        startSampleDate=startDate,
-        endSampleDate=endDate,
-        trainTestSplitDate=trainTestSplitDate
-    )
-
-def getMediumDatasets_extended(startDate, endDate, trainTestSplitDate=None):
-    return get_Medium_Datasets_extended(
-        preproc_data=preproc_data,
-        startSampleDate=startDate,
-        endSampleDate=endDate,
-        trainTestSplitDate=trainTestSplitDate
-    )
+    def getMediumDatasets_extended(startDate, endDate, trainTestSplitDate=None):
+        return get_Medium_Datasets_extended(
+            preproc_data=preproc_data,
+            startSampleDate=startDate,
+            endSampleDate=endDate,
+            trainTestSplitDate=trainTestSplitDate
+        )
 
 #endregion
 
@@ -227,7 +235,7 @@ if DO_FORECASTS:
             dataset2007_save, 
             "dataset2007_GDP_data.pkl"
         )
-        print("[!] GDP dataset (train / test) saved to results/ folder as pickle.")
+        print("[!] GDP dataset (train / test) saved to results_rev1/ folder as pickle.")
     else:
         print("[!] GDP dataset not saved, set SAVE_RESULTS = True to save them.")
 
@@ -243,7 +251,7 @@ else:
         "GDP_data_test": dataset2007_loaded["GDP_data_test"],
     }
 
-    print("[!] GDP dataset (train / test) loaded from results/ folder as pickle.")
+    print("[!] GDP dataset (train / test) loaded from results_rev1/ folder as pickle.")
 
 #endregion
 
@@ -355,129 +363,131 @@ def getDFMMultiStepAheadForecast(model_name, steps, date_slice=None):
 
 #endregion
 
-#region --- Single ESN 
+# Saved forecasts do not require reservoir construction.
+if DO_FORECASTS:
+    #region --- Single ESN 
 
-esn_S_A = ESN(
-    N=30,
-    A=stateMatrixGenerator(
-        (30, 30), 
-        dist='sparse_normal', sparsity=10/30, normalize='eig',
-        seed=20220623
-    ),
-    C=stateMatrixGenerator(
-        (30, int(m_data.shape[1] + d_data.shape[1])), 
-        dist='sparse_uniform', sparsity=10/30, normalize='norm2',
-        seed=20220623
-    ),
-    rho=0.5,
-    gamma=1,
-    leak_rate=0.1,
-    activation=np.tanh,
-)
+    esn_S_A = ESN(
+        N=30,
+        A=stateMatrixGenerator(
+            (30, 30), 
+            dist='sparse_normal', sparsity=10/30, normalize='eig',
+            seed=20220623
+        ),
+        C=stateMatrixGenerator(
+            (30, int(m_data.shape[1] + d_data.shape[1])), 
+            dist='sparse_uniform', sparsity=10/30, normalize='norm2',
+            seed=20220623
+        ),
+        rho=0.5,
+        gamma=1,
+        leak_rate=0.1,
+        activation=np.tanh,
+    )
 
-singleESN_A = ESNMultiFrequency((esn_S_A,), ar=False) 
+    singleESN_A = ESNMultiFrequency((esn_S_A,), ar=False) 
 
-esn_S_B = ESN(
-    N=120,
-    A=stateMatrixGenerator(
-        (120, 120), 
-        dist='sparse_normal', sparsity=10/120, normalize='eig',
-        seed=19120623
-    ),
-    C=stateMatrixGenerator(
-        (120, int(m_data.shape[1] + d_data.shape[1])), 
-        dist='sparse_uniform', sparsity=10/120, normalize='norm2',
-        seed=19120623
-    ),
-    rho=0.5,
-    gamma=1,
-    leak_rate=0.1,
-    activation=np.tanh,
-)
+    esn_S_B = ESN(
+        N=120,
+        A=stateMatrixGenerator(
+            (120, 120), 
+            dist='sparse_normal', sparsity=10/120, normalize='eig',
+            seed=19120623
+        ),
+        C=stateMatrixGenerator(
+            (120, int(m_data.shape[1] + d_data.shape[1])), 
+            dist='sparse_uniform', sparsity=10/120, normalize='norm2',
+            seed=19120623
+        ),
+        rho=0.5,
+        gamma=1,
+        leak_rate=0.1,
+        activation=np.tanh,
+    )
 
-singleESN_B = ESNMultiFrequency((esn_S_B,), ar=False) 
+    singleESN_B = ESNMultiFrequency((esn_S_B,), ar=False) 
 
-#endregion
+    #endregion
 
-#region --- Multi ESN
+    #region --- Multi ESN
 
-esn_M_A = ESN(
-    N=100,
-    A=stateMatrixGenerator(
-        (100, 100), 
-        dist='sparse_normal', sparsity=10/100, normalize='eig',
-        seed=20220623
-    ),
-    C=stateMatrixGenerator(
-        (100, m_data.shape[1]), 
-        dist='sparse_uniform', sparsity=10/100, normalize='norm2',
-        seed=20220623
-    ),
-    rho=0.5,
-    gamma=1.5,
-    leak_rate=0,
-    activation=np.tanh,
-)
+    esn_M_A = ESN(
+        N=100,
+        A=stateMatrixGenerator(
+            (100, 100), 
+            dist='sparse_normal', sparsity=10/100, normalize='eig',
+            seed=20220623
+        ),
+        C=stateMatrixGenerator(
+            (100, m_data.shape[1]), 
+            dist='sparse_uniform', sparsity=10/100, normalize='norm2',
+            seed=20220623
+        ),
+        rho=0.5,
+        gamma=1.5,
+        leak_rate=0,
+        activation=np.tanh,
+    )
 
-esn_D_A = ESN(
-    N=20,
-    A=stateMatrixGenerator(
-        (20, 20), 
-        dist='sparse_normal', sparsity=10/20, normalize='eig',
-        seed=20220623
-    ),
-    C=stateMatrixGenerator(
-        (20, d_data.shape[1]), 
-        dist='sparse_uniform', sparsity=10/20, normalize='norm2',
-        seed=20220623
-    ),
-    rho=0.5,
-    gamma=0.5,
-    leak_rate=0.1,
-    activation=np.tanh,
-)
+    esn_D_A = ESN(
+        N=20,
+        A=stateMatrixGenerator(
+            (20, 20), 
+            dist='sparse_normal', sparsity=10/20, normalize='eig',
+            seed=20220623
+        ),
+        C=stateMatrixGenerator(
+            (20, d_data.shape[1]), 
+            dist='sparse_uniform', sparsity=10/20, normalize='norm2',
+            seed=20220623
+        ),
+        rho=0.5,
+        gamma=0.5,
+        leak_rate=0.1,
+        activation=np.tanh,
+    )
 
-multiESN_A = ESNMultiFrequency((esn_M_A, esn_D_A), ar=False) 
+    multiESN_A = ESNMultiFrequency((esn_M_A, esn_D_A), ar=False) 
 
-esn_M_B = ESN(
-    N=100,
-    A=stateMatrixGenerator(
-        (100, 100), 
-        dist='sparse_normal', sparsity=10/100, normalize='eig',
-        seed=19120623
-    ),
-    C=stateMatrixGenerator(
-        (100, m_data.shape[1]), 
-        dist='sparse_uniform', sparsity=10/100, normalize='norm2',
-        seed=19120623
-    ),
-    rho=0.08,
-    gamma=0.25,
-    leak_rate=0.3,
-    activation=np.tanh,
-)
+    esn_M_B = ESN(
+        N=100,
+        A=stateMatrixGenerator(
+            (100, 100), 
+            dist='sparse_normal', sparsity=10/100, normalize='eig',
+            seed=19120623
+        ),
+        C=stateMatrixGenerator(
+            (100, m_data.shape[1]), 
+            dist='sparse_uniform', sparsity=10/100, normalize='norm2',
+            seed=19120623
+        ),
+        rho=0.08,
+        gamma=0.25,
+        leak_rate=0.3,
+        activation=np.tanh,
+    )
 
-esn_D_B = ESN(
-    N=20,
-    A=stateMatrixGenerator(
-        (20, 20), 
-        dist='sparse_normal', sparsity=10/20, normalize='eig',
-        seed=19120623
-    ),
-    C=stateMatrixGenerator(
-        (20, d_data.shape[1]), 
-        dist='sparse_uniform', sparsity=10/20, normalize='norm2',
-        seed=19120623
-    ),
-    rho=0.01,
-    gamma=0.01,
-    leak_rate=0.99,
-    activation=np.tanh,
-)
+    esn_D_B = ESN(
+        N=20,
+        A=stateMatrixGenerator(
+            (20, 20), 
+            dist='sparse_normal', sparsity=10/20, normalize='eig',
+            seed=19120623
+        ),
+        C=stateMatrixGenerator(
+            (20, d_data.shape[1]), 
+            dist='sparse_uniform', sparsity=10/20, normalize='norm2',
+            seed=19120623
+        ),
+        rho=0.01,
+        gamma=0.01,
+        leak_rate=0.99,
+        activation=np.tanh,
+    )
 
-multiESN_B = ESNMultiFrequency((esn_M_B, esn_D_B), ar=False) 
+    multiESN_B = ESNMultiFrequency((esn_M_B, esn_D_B), ar=False) 
 
-#endregion
+    #endregion
 
 #region --- Estimation and forecasting
 
@@ -493,11 +503,11 @@ if DO_FORECASTS:
     )
 
     DFM_A_fix_multistep_for_2007 = getDFMMultiStepAheadForecast(
-        'stock__10__6__[1]_fixed__2007', steps=8, date_slice=DFM_slice_2007,
+        'stock__10__6__[1]_fixed__2007', steps=FORECAST_STEPS, date_slice=DFM_slice_2007,
     )
 
     DFM_B_fix_multistep_for_2007 = getDFMMultiStepAheadForecast(
-        'almon__10__6__[1]_fixed__2007', steps=8, date_slice=DFM_slice_2007,
+        'almon__10__6__[1]_fixed__2007', steps=FORECAST_STEPS, date_slice=DFM_slice_2007,
     )
 
     # Unconditional Mean Forecasts
@@ -602,7 +612,7 @@ if DO_FORECASTS:
             results_fixed_parameters, 
             "results_M__multistep_fixed_parameters.pkl"
         )
-        print("[!] Results saved to results/ folder as pickle.")
+        print("[!] Results saved to results_rev1/ folder as pickle.")
     else:
         print("[!] Results not saved, set SAVE_RESULTS = True to save them.")
 
@@ -643,7 +653,7 @@ else:
         multiESN_B_fix_multistep_for_2007,
     ) = results_fixed_parameters
 
-    print("[!] Results loaded from results/ folder as pickle.")
+    print("[!] Results loaded from results_rev1/ folder as pickle.")
 
 #endregion
 
@@ -792,7 +802,7 @@ if DO_FORECASTS:
             results_singleESN_A_fix_grid_seed, 
             "results_M__multistep_singleESN_A_fix_grid_seed.pkl"
         )
-        print("[!] Results saved to results/ folder as pickle.")
+        print("[!] Results saved to results_rev1/ folder as pickle.")
     else:
         print("[!] Results not saved, set SAVE_RESULTS = True to save them.")
 
@@ -813,7 +823,7 @@ if DO_FORECASTS:
             results_singleESN_B_fix_grid_seed, 
             "results_M__multistep_singleESN_B_fix_grid_seed.pkl"
         )
-        print("[!] Results saved to results/ folder as pickle.")
+        print("[!] Results saved to results_rev1/ folder as pickle.")
     else:
         print("[!] Results not saved, set SAVE_RESULTS = True to save them.")
 
@@ -834,7 +844,7 @@ if DO_FORECASTS:
             results_multiESN_A_fix_grid_seed, 
             "results_M__multistep_multiESN_A_fix_grid_seed.pkl"
         )
-        print("[!] Results saved to results/ folder as pickle.")
+        print("[!] Results saved to results_rev1/ folder as pickle.")
     else:
         print("[!] Results not saved, set SAVE_RESULTS = True to save them.")
 
@@ -856,7 +866,7 @@ if DO_FORECASTS:
             results_multiESN_B_fix_grid_seed,
             "results_M__multistep_multiESN_B_fix_grid_seed.pkl"
         )
-        print("[!] Results saved to results/ folder as pickle.")
+        print("[!] Results saved to results_rev1/ folder as pickle.")
     else:
         print("[!] Results not saved, set SAVE_RESULTS = True to save them.")
 
@@ -910,7 +920,7 @@ else:
     )
     assert not results_multiESN_B_fix_grid_seed is None
 
-    print("[!] Results loaded from results/ folder as pickle.")
+    print("[!] Results loaded from results_rev1/ folder as pickle.")
 
 dict_results_ens_fix_grid_seed_models = {
     "S-MFESN_A": results_singleESN_A_fix_grid_seed,
@@ -1062,7 +1072,7 @@ def plot_comb_weights(weights_list, h=1, model_name="", method_name=""):
     plt.grid(axis='y', which='both', linestyle='--', linewidth=0.5)
     plt.show()
 
-def plot_top_weights_lines(weights_list, top_eps=1e-9, h=1, model_name="", method_name=""):
+def plot_top_weights_lines(weights_list, top_eps=1e-9, h=1, model_name="", method_name="", ensemble_suffix="seed_leak"):
     weights_array = weights_list[h-1].to_numpy()
     # Get the max weight across models for each resampling
     K = weights_list[h-1].shape[1]
@@ -1097,7 +1107,7 @@ def plot_top_weights_lines(weights_list, top_eps=1e-9, h=1, model_name="", metho
     plt.grid(axis='y', which='both', linestyle='--', linewidth=0.5)
 
     if SAVE_PLOTS:
-        figname = f'line_weights_{method_name}_{model_name}_multistep_h={h}_seed_leak_MediumMD_fix_2007.pdf' 
+        figname = f'line_weights_{method_name}_{model_name}_multistep_h={h}_{ensemble_suffix}_MediumMD_fix_2007.pdf' 
         plt.savefig(os.path.join(
             PATH_FIGURES, 
             figname,
@@ -1112,7 +1122,7 @@ def plot_top_weights_lines(weights_list, top_eps=1e-9, h=1, model_name="", metho
     )
     plt.show()
 
-def plot_top_weights_stack(weights_list, rank_list, top_num=5, h=1, model_name="", method_name=""):
+def plot_top_weights_stack(weights_list, rank_list, top_num=5, h=1, model_name="", method_name="", ensemble_suffix="seed_leak"):
     weights_array = weights_list[h-1].to_numpy()
     rank_array = rank_list[h-1]
     # Determine top weights indices
@@ -1150,7 +1160,7 @@ def plot_top_weights_stack(weights_list, rank_list, top_num=5, h=1, model_name="
                ncol=3)
     
     if SAVE_PLOTS:
-        figname = f'stack_weights_{method_name}_{model_name}_multistep_h={h}_seed_leak_MediumMD_fix_2007.pdf' 
+        figname = f'stack_weights_{method_name}_{model_name}_multistep_h={h}_{ensemble_suffix}_MediumMD_fix_2007.pdf' 
         plt.savefig(os.path.join(
             PATH_FIGURES, 
             figname,
@@ -1307,7 +1317,7 @@ for model_name, results in dict_results_ens_fix_grid_seed_models.items():
             )
             plt.plot(
                 esnmodel_fix_grid_seed__forecast_ens_sa.iloc[t_idx,h-1],
-                color='C0', alpha=0.7, linewidth=1.5, ls=":", label='Simple Average',
+                color='C0', alpha=0.7, linewidth=1.5, ls=":", label='SA',
             )
             plt.plot(
                 esnmodel_fix_grid_seed__forecast_ens_rollmse.iloc[t_idx,h-1],
@@ -1404,7 +1414,7 @@ for model_name, results in dict_results_ens_fix_grid_seed_models.items():
                         label=f'Median')
             plt.axvline(esnmodel__MSE_toRef_multistep_fix_grid_seed_2007_td_ens_sa.iloc[:,h-1].item(), 
                         color='C0', linestyle='dashed', linewidth=1.7, 
-                        label=f'Average')
+                        label=f'SA')
             plt_xaxis_marker(esnmodel__MSE_toRef_multistep_fix_grid_seed_2007_td_ens_sa.iloc[:,h-1].item(), y=0,
                         color='C0', marker="X", markersize=8, alpha=0.5)
             plt.axvline(esnmodel__MSE_toRef_multistep_fix_grid_seed_2007_td_ens_rollmse.iloc[:,h-1].item(), 
@@ -1478,7 +1488,8 @@ for model_name, results in dict_results_ens_fix_grid_seed_models.items():
                 top_num=5, 
                 h=h, 
                 model_name=model_name, 
-                method_name="RollMSE"
+                method_name="RollMSE",
+                ensemble_suffix="seed"
             )
 
     # Plot DecHedge weights over time
@@ -1490,7 +1501,8 @@ for model_name, results in dict_results_ens_fix_grid_seed_models.items():
                 top_num=5, 
                 h=h, 
                 model_name=model_name, 
-                method_name="DecHedge"
+                method_name="DecHedge",
+                ensemble_suffix="seed"
             )
 
     # Plot FTL weights over time
@@ -1501,7 +1513,8 @@ for model_name, results in dict_results_ens_fix_grid_seed_models.items():
                 top_eps=1e-9, 
                 h=h, 
                 model_name=model_name, 
-                method_name="FTL"
+                method_name="FTL",
+                ensemble_suffix="seed"
             )
 
     # Plot AdaHedge weights over time
@@ -1513,7 +1526,8 @@ for model_name, results in dict_results_ens_fix_grid_seed_models.items():
                 top_num=5, 
                 h=h, 
                 model_name=model_name, 
-                method_name="AdaHedge"
+                method_name="AdaHedge",
+                ensemble_suffix="seed"
             )
 
     # Joint RMSFE, MSFE and relative MSFE table for ensemble forecasts
@@ -1555,7 +1569,7 @@ for model_name, results in dict_results_ens_fix_grid_seed_models.items():
         esnmodel__MSE_toRef_multistep_fix_grid_seed_2007_td_ens_median,
         dict_results_MSFE_base_models[model_name][2],
     )
-    _tmp_row_lambda("Simple Average",
+    _tmp_row_lambda("SA",
         esnmodel__MSE_multistep_fix_grid_seed_2007_td_ens_sa,
         esnmodel__MSE_toRef_multistep_fix_grid_seed_2007_td_ens_sa,
         dict_results_MSFE_base_models[model_name][2],
@@ -1622,7 +1636,7 @@ if DO_FORECASTS:
             results_singleESN_A_fix_grid_seed_leak, 
             "results_M__multistep_singleESN_A_fix_grid_seed_leak.pkl"
         )
-        print("[!] Results saved to results/ folder as pickle.")
+        print("[!] Results saved to results_rev1/ folder as pickle.")
     else:
         print("[!] Results not saved, set SAVE_RESULTS = True to save them.")
 
@@ -1644,7 +1658,7 @@ if DO_FORECASTS:
             results_singleESN_B_fix_grid_seed_leak, 
             "results_M__multistep_singleESN_B_fix_grid_seed_leak.pkl"
         )
-        print("[!] Results saved to results/ folder as pickle.")
+        print("[!] Results saved to results_rev1/ folder as pickle.")
     else:
         print("[!] Results not saved, set SAVE_RESULTS = True to save them.")
 
@@ -1666,7 +1680,7 @@ if DO_FORECASTS:
             results_multiESN_A_fix_grid_seed_leak, 
             "results_M__multistep_multiESN_A_fix_grid_seed_leak.pkl"
         )
-        print("[!] Results saved to results/ folder as pickle.")
+        print("[!] Results saved to results_rev1/ folder as pickle.")
     else:
         print("[!] Results not saved, set SAVE_RESULTS = True to save them.")
 
@@ -1688,7 +1702,7 @@ if DO_FORECASTS:
             results_multiESN_B_fix_grid_seed_leak,
             "results_M__multistep_multiESN_B_fix_grid_seed_leak.pkl"
         )
-        print("[!] Results saved to results/ folder as pickle.")
+        print("[!] Results saved to results_rev1/ folder as pickle.")
     else:
         print("[!] Results not saved, set SAVE_RESULTS = True to save them.")
 
@@ -1742,7 +1756,7 @@ else:
     )
     assert not results_multiESN_B_fix_grid_seed_leak is None
 
-    print("[!] Results loaded from results/ folder as pickle.")
+    print("[!] Results loaded from results_rev1/ folder as pickle.")
 
 dict_results_ens_fix_grid_seed_leak_models = {
     "S-MFESN_A": results_singleESN_A_fix_grid_seed_leak,
@@ -1769,7 +1783,7 @@ def split_by_leak_rate(results_tuple):
         })
     return split_results
 
-def plot_msfe_ecdf_by_leak_rate(results, results_by_leak_list, model_name="",):
+def plot_msfe_ecdf_by_leak_rate(results, results_by_leak_list, model_name="", h=1, ensemble_suffix="seed_leak"):
     plt.figure(figsize=(5.7,4))
     plt.ecdf(x=results, color="0.2", label="All models", linewidth=1.6)
     for j, rbl in enumerate(results_by_leak_list):
@@ -1782,7 +1796,7 @@ def plot_msfe_ecdf_by_leak_rate(results, results_by_leak_list, model_name="",):
     plt.grid(which='major', color="0.85")
 
     if SAVE_PLOTS: 
-        figname = f'ecdf_by_leak_rate_{model_name}_multistep_h={h}_seed_leak_MediumMD_fix_2007.pdf' 
+        figname = f'ecdf_by_leak_rate_{model_name}_multistep_h={h}_{ensemble_suffix}_MediumMD_fix_2007.pdf' 
         plt.savefig(os.path.join(
             PATH_FIGURES, 
             figname,
@@ -1939,7 +1953,7 @@ for model_name, results in dict_results_ens_fix_grid_seed_leak_models.items():
             )
             plt.plot(
                 esnmodel_fix_grid_seed_leak__forecast_ens_sa.iloc[t_idx,h-1],
-                color='C0', alpha=0.7, linewidth=1.5, ls=":", label='Simple Average',
+                color='C0', alpha=0.7, linewidth=1.5, ls=":", label='SA',
             )
             plt.plot(
                 esnmodel_fix_grid_seed_leak__forecast_ens_rollmse.iloc[t_idx,h-1],
@@ -2036,7 +2050,7 @@ for model_name, results in dict_results_ens_fix_grid_seed_leak_models.items():
                         label=f'Median')
             plt.axvline(esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_2007_td_ens_sa.iloc[:,h-1].item(), 
                         color='C0', linestyle='dashed', linewidth=1.7, 
-                        label=f'Average')
+                        label=f'SA')
             plt_xaxis_marker(esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_2007_td_ens_sa.iloc[:,h-1].item(), y=0,
                         color='C0', marker="X", markersize=8, alpha=0.5)
             plt.axvline(esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_2007_td_ens_rollmse.iloc[:,h-1].item(), 
@@ -2206,7 +2220,7 @@ for model_name, results in dict_results_ens_fix_grid_seed_leak_models.items():
         esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_2007_td_ens_median,
         dict_results_MSFE_base_models[model_name][2],
     )
-    _tmp_row_lambda("Simple Average",
+    _tmp_row_lambda("SA",
         esnmodel__MSE_multistep_fix_grid_seed_leak_2007_td_ens_sa,
         esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_2007_td_ens_sa,
         dict_results_MSFE_base_models[model_name][2],
@@ -2234,6 +2248,1209 @@ for model_name, results in dict_results_ens_fix_grid_seed_leak_models.items():
     _tmp_row_lambda("AdaHedge",
         esnmodel__MSE_multistep_fix_grid_seed_leak_2007_td_ens_adahedge,
         esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_2007_td_ens_adahedge,
+        dict_results_MSFE_base_models[model_name][2],
+    )
+    console.print(_tmp_table)
+
+#endregion
+
+#endregion
+
+#region // ENSEMBLE ESN W/ DIFFERENT RES. MATRICES AND RIDGE --
+
+#%%%
+#region --- Run Ensembles
+
+print("\n\n// ENSEMBLE ESN W/ DIFFERENT RAND. MATRICES AND RIDGE PENALTIES ---------\n")
+
+RIDGE_PENALTIES = np.logspace(-2, 2, num=5)
+SEEDS_RP_LAMBDA = np.linspace(5, 5000, num=ESN_MATRIX_RESAMPLES//len(RIDGE_PENALTIES))
+# Fixed penalties; no per-expert ridge-penalty tuning.
+
+if DO_FORECASTS:
+    print(f"[!] Computing ensemble forecasts... [{ESN_MATRIX_RESAMPLES} resamples]\n")
+
+    print("--- S-MFESN A")
+    #--- Single ESN A
+    results_singleESN_A_fix_grid_seed_lambda = singleESN_A_multistep_fix_grid_seed_lambda(
+        input_size=int(m_data.shape[1] + d_data.shape[1]),
+        reservoir_size=30,
+        dataset_fit_for=dataset2007,
+        steps=FORECAST_STEPS,
+        seed_list=SEEDS_RP_LAMBDA,
+        lambda_list=RIDGE_PENALTIES,
+        direct=False,
+    )
+    # Pickle results
+    if SAVE_RESULTS:
+        save_to_pickle(
+            results_singleESN_A_fix_grid_seed_lambda, 
+            "results_M__multistep_singleESN_A_fix_grid_seed_lambda.pkl"
+        )
+        print("[!] Results saved to results_rev1/ folder as pickle.")
+    else:
+        print("[!] Results not saved, set SAVE_RESULTS = True to save them.")
+
+    print("--- S-MFESN B")
+    #--- Single ESN B
+    results_singleESN_B_fix_grid_seed_lambda = singleESN_B_multistep_fix_grid_seed_lambda(
+        input_size=int(m_data.shape[1] + d_data.shape[1]),
+        reservoir_size=120,
+        dataset_fit_for=dataset2007,
+        steps=FORECAST_STEPS,
+        seed_list=SEEDS_RP_LAMBDA,
+        lambda_list=RIDGE_PENALTIES,
+        direct=False,
+    )
+    # Pickle results
+    if SAVE_RESULTS:
+        save_to_pickle(
+            results_singleESN_B_fix_grid_seed_lambda, 
+            "results_M__multistep_singleESN_B_fix_grid_seed_lambda.pkl"
+        )
+        print("[!] Results saved to results_rev1/ folder as pickle.")
+    else:
+        print("[!] Results not saved, set SAVE_RESULTS = True to save them.")
+
+    print("--- M-MFESN A")
+    #--- Multi ESN A
+    results_multiESN_A_fix_grid_seed_lambda = multiESN_A_multistep_fix_grid_seed_lambda(
+        input_size=(m_data.shape[1], d_data.shape[1]),
+        reservoir_size=(100, 20),
+        dataset_fit_for=dataset2007,
+        steps=FORECAST_STEPS,
+        seed_list=SEEDS_RP_LAMBDA,
+        lambda_list=RIDGE_PENALTIES,
+        direct=False,
+    )
+    # Pickle results
+    if SAVE_RESULTS:
+        save_to_pickle(
+            results_multiESN_A_fix_grid_seed_lambda, 
+            "results_M__multistep_multiESN_A_fix_grid_seed_lambda.pkl"
+        )
+        print("[!] Results saved to results_rev1/ folder as pickle.")
+    else:
+        print("[!] Results not saved, set SAVE_RESULTS = True to save them.")
+
+    print("--- M-MFESN B")
+    #--- Multi ESN B
+    results_multiESN_B_fix_grid_seed_lambda = multiESN_B_multistep_fix_grid_seed_lambda(
+        input_size=(m_data.shape[1], d_data.shape[1]),
+        reservoir_size=(100, 20),
+        dataset_fit_for=dataset2007,
+        steps=FORECAST_STEPS,
+        seed_list=SEEDS_RP_LAMBDA,
+        lambda_list=RIDGE_PENALTIES,
+        direct=False,
+    )
+
+    # Pickle results
+    if SAVE_RESULTS:
+        save_to_pickle(
+            results_multiESN_B_fix_grid_seed_lambda,
+            "results_M__multistep_multiESN_B_fix_grid_seed_lambda.pkl"
+        )
+        print("[!] Results saved to results_rev1/ folder as pickle.")
+    else:
+        print("[!] Results not saved, set SAVE_RESULTS = True to save them.")
+
+    # Export to CSVs
+    if SAVE_CSVS:
+        os.makedirs(PATH_EXPORTS, exist_ok=True)
+        for h in OUTPUT_STEPS:
+            results_singleESN_A_fix_grid_seed_lambda[0][h-1].to_csv(
+                os.path.join(PATH_EXPORTS, f"results_singleESN_A_fix_multistep_grid_seed_lambda_for_2007_h={h}.csv"),
+                index=True,
+                header=True,
+            )
+            results_singleESN_B_fix_grid_seed_lambda[0][h-1].to_csv(
+                os.path.join(PATH_EXPORTS, f"results_singleESN_B_fix_multistep_grid_seed_lambda_for_2007_h={h}.csv"),
+                index=True,
+                header=True,
+            )
+            results_multiESN_A_fix_grid_seed_lambda[0][h-1].to_csv(
+                os.path.join(PATH_EXPORTS, f"results_multiESN_A_fix_multistep_grid_seed_lambda_for_2007_h={h}.csv"),
+                index=True,
+                header=True,
+            )
+            results_multiESN_B_fix_grid_seed_lambda[0][h-1].to_csv(
+                os.path.join(PATH_EXPORTS, f"results_multiESN_B_fix_multistep_grid_seed_lambda_for_2007_h={h}.csv"),
+                index=True,
+                header=True,
+            )
+        print("\n[!] Results exported to results/ folder as CSVs.")
+    else:
+        print("\n[!] Results not exported, set SAVE_CSVS = True to save them.")
+
+else:
+    # Load results
+    results_singleESN_A_fix_grid_seed_lambda = load_from_pickle(
+        "results_M__multistep_singleESN_A_fix_grid_seed_lambda.pkl"
+    )
+    assert not results_singleESN_A_fix_grid_seed_lambda is None
+
+    results_singleESN_B_fix_grid_seed_lambda = load_from_pickle(
+        "results_M__multistep_singleESN_B_fix_grid_seed_lambda.pkl"
+    )
+    assert not results_singleESN_B_fix_grid_seed_lambda is None
+
+    results_multiESN_A_fix_grid_seed_lambda = load_from_pickle(
+        "results_M__multistep_multiESN_A_fix_grid_seed_lambda.pkl"
+    )
+    assert not results_multiESN_A_fix_grid_seed_lambda is None
+
+    results_multiESN_B_fix_grid_seed_lambda = load_from_pickle(
+        "results_M__multistep_multiESN_B_fix_grid_seed_lambda.pkl"
+    )
+    assert not results_multiESN_B_fix_grid_seed_lambda is None
+
+    print("[!] Results loaded from results_rev1/ folder as pickle.")
+
+dict_results_ens_fix_grid_seed_lambda_models = {
+    "S-MFESN_A": results_singleESN_A_fix_grid_seed_lambda,
+    "S-MFESN_B": results_singleESN_B_fix_grid_seed_lambda,
+    "M-MFESN_A": results_multiESN_A_fix_grid_seed_lambda,
+    "M-MFESN_B": results_multiESN_B_fix_grid_seed_lambda,
+}
+
+#endregion
+
+
+#%%%
+#region --- Construct Plots and Tables
+
+for model_name, results in dict_results_ens_fix_grid_seed_lambda_models.items():
+    print(f"\n--- Ensemble Combination // {model_name} ---\n")
+
+    # Unwrap result tuple
+    (esnmodel_fix_grid_seed_lambda__forecast, 
+    esnmodel_fix_grid_seed_lambda__sfe,
+    esnmodel_fix_grid_seed_lambda__msfe,
+    ) = results
+
+    esnmodel_fix_grid_seed_lambda__MSFE = multistepStepMSFE_ensemble_2007(
+        esnmodel_fix_grid_seed_lambda__forecast
+    )
+    esnmodel_fix_grid_seed_lambda__RelMSE = multistepRelativeMSFE_ensemble_2007(
+        esnmodel_fix_grid_seed_lambda__MSFE, ref_MSE_2007_fix
+    )
+
+    if DO_PLOTS and OPTIONAL_PLOTS:
+        # plt.figure(figsize=(5,3))
+        # plt.plot(
+        #     esnmodel_fix_grid_seed_lambda__RelMSE,
+        #     color='lightgray',
+        #     alpha=np.minimum(0.5, 10/ESN_MATRIX_RESAMPLES),
+        # )
+        # # plt.title(f'Single ESN A: Relative MSFE Distribution over {ESN_MATRIX_RESAMPLES} Resamplings\n(Fixed Parameters, Pre-Crisis Evaluation, h={h})')
+        # plt.xticks(range(FORECAST_STEPS))
+        # # plt.yticks(np.linspace(0.7, 1.1, num=9))
+        # plt.ylabel('Relative MSFE')
+        # plt.grid(axis='y', which='both', linestyle='--', linewidth=0.5)
+        # # if SAVE_PLOTS:
+        # #     plt.savefig(
+        # #         os.path.join(
+        # #             PATH_FIGURES, 
+        # #             f'figure_M__multistep_singleESN_A_fix_grid_seed_lambda_relMSFE_h{h}.png'
+        # #         ),
+        # #         dpi=300,
+        # #         bbox_inches='tight',
+        # #     )
+        # plt.show()
+        pass
+
+    # Compute ensemble forecasts
+    # Median
+    esnmodel_fix_grid_seed_lambda__forecast_ens_median, _ = median_for(
+        esnmodel_fix_grid_seed_lambda__forecast
+    )
+
+    # Simple Average
+    esnmodel_fix_grid_seed_lambda__forecast_ens_sa, _ = sa_comb_for(
+        esnmodel_fix_grid_seed_lambda__forecast
+    )
+
+    # RollMSE
+    (esnmodel_fix_grid_seed_lambda__forecast_ens_rollmse, 
+    esnmodel_fix_grid_seed_lambda__weights_ens_rollmse) = rollmse_comb_for(
+        esnmodel_fix_grid_seed_lambda__forecast
+    )
+
+    # Constant Hedge
+    (esnmodel_fix_grid_seed_lambda__forecast_ens_consthedge, 
+    esnmodel_fix_grid_seed_lambda__weights_ens_consthedge) = const_hedge_comb_for(
+        esnmodel_fix_grid_seed_lambda__forecast,
+        esnmodel_fix_grid_seed_lambda__sfe,
+    )
+
+    if DO_PLOTS and OPTIONAL_PLOTS:
+        # plot_comb_weights(
+        #     esnmodel_fix_grid_seed_lambda__weights_ens_consthedge,
+        #     h=1,
+        #     method_name="Constant Hedge"
+        # )
+        pass
+
+    # Decreasing Hedge
+    (esnmodel_fix_grid_seed_lambda__forecast_ens_dechedge, 
+    esnmodel_fix_grid_seed_lambda__weights_ens_dechedge) = dec_hedge_comb_for(
+        esnmodel_fix_grid_seed_lambda__forecast,
+        esnmodel_fix_grid_seed_lambda__sfe,
+    )
+
+    if DO_PLOTS and OPTIONAL_PLOTS:
+        # plot_comb_weights(
+        #     esnmodel_fix_grid_seed_lambda__weights_ens_dechedge,
+        #     h=1,
+        #     method_name="Decreasing Hedge"
+        # )
+        pass
+
+    # Follow-The-Leader
+    (esnmodel_fix_grid_seed_lambda__forecast_ens_ftl, 
+    esnmodel_fix_grid_seed_lambda__weights_ens_ftl) = ftl_comb_for(
+        esnmodel_fix_grid_seed_lambda__forecast,
+        esnmodel_fix_grid_seed_lambda__sfe,
+    )
+
+    if DO_PLOTS and OPTIONAL_PLOTS:
+        # plot_comb_weights(
+        #     esnmodel_fix_grid_seed_lambda__weights_ens_ftl,
+        #     h=1,
+        #     method_name="Follow-The-Leader"
+        # )
+        pass
+
+    # Adaptive Hedge
+    (esnmodel_fix_grid_seed_lambda__forecast_ens_adahedge, 
+    esnmodel_fix_grid_seed_lambda__weights_ens_adahedge) = adahedge_comb_for(
+        esnmodel_fix_grid_seed_lambda__forecast,
+        esnmodel_fix_grid_seed_lambda__sfe,
+    )
+
+    if DO_PLOTS and OPTIONAL_PLOTS:
+        # plot_comb_weights(
+        #     esnmodel_fix_grid_seed_lambda__weights_ens_adahedge,
+        #     h=1,
+        #     method_name="Adaptive Hedge"
+        # )
+        pass
+
+    # (Optional) Plot combination methods forecasts against actuals
+    if DO_PLOTS and OPTIONAL_PLOTS:
+        for h in OUTPUT_STEPS:
+            plt.figure(figsize=(10,4))
+            plt.plot(
+                dataset2007['GDP_data_test'],
+                color='black', linewidth=2, label='Target',
+            )
+            t_idx = list(range(h-1, (dataset2007['GDP_data_test'].shape[0]-FORECAST_STEPS+h)))
+            plt.plot(
+                dict_results_MSFE_base_models[model_name][0].iloc[t_idx,h-1],
+                color='C7', alpha=0.7, linewidth=1.5, label=model_name,
+            )
+            plt.plot(
+                esnmodel_fix_grid_seed_lambda__forecast_ens_median.iloc[t_idx,h-1],
+                color='C8', alpha=0.7, linewidth=1.5, label='Median',
+            )
+            plt.plot(
+                esnmodel_fix_grid_seed_lambda__forecast_ens_sa.iloc[t_idx,h-1],
+                color='C0', alpha=0.7, linewidth=1.5, ls=":", label='SA',
+            )
+            plt.plot(
+                esnmodel_fix_grid_seed_lambda__forecast_ens_rollmse.iloc[t_idx,h-1],
+                color='C1', alpha=0.7, linewidth=1.5, ls=":", label='RollMSE',
+            )
+            plt.plot(
+                esnmodel_fix_grid_seed_lambda__forecast_ens_consthedge.iloc[t_idx,h-1],
+                color='C2', alpha=0.7, linewidth=1.5, ls="--", label='Const. Hedge',
+            )
+            plt.plot(
+                esnmodel_fix_grid_seed_lambda__forecast_ens_dechedge.iloc[t_idx,h-1],
+                color='C6', alpha=0.7, linewidth=1.5, ls="--", label='Dec. Hedge',
+            )
+            plt.plot(
+                esnmodel_fix_grid_seed_lambda__forecast_ens_ftl.iloc[t_idx,h-1],
+                color='C3', alpha=0.7, linewidth=1.5, label='FTL',
+            )
+            plt.plot(
+                esnmodel_fix_grid_seed_lambda__forecast_ens_adahedge.iloc[t_idx,h-1],
+                color='C4', alpha=0.7, linewidth=1.5, label='AdaHedge',
+            )
+            plt.title(f"{model_name} Ensemble -- RP // Forecast vs Targets (h={h})")
+            plt.xlabel('Time Index')
+            plt.ylabel('GDP Growth Rate')
+            plt.legend()
+            plt.grid(axis='y', which='both', linestyle='--', linewidth=0.5)
+            plt.show()
+
+    # MSFE of ensemble forecast
+    esnmodel__MSE_multistep_fix_grid_seed_lambda_2007_td_ens_median = multistepStepMSFE_2007(    
+        esnmodel_fix_grid_seed_lambda__forecast_ens_median
+    )
+    esnmodel__MSE_multistep_fix_grid_seed_lambda_2007_td_ens_sa = multistepStepMSFE_2007(
+        esnmodel_fix_grid_seed_lambda__forecast_ens_sa
+    )
+    esnmodel__MSE_multistep_fix_grid_seed_lambda_2007_td_ens_rollmse = multistepStepMSFE_2007(
+        esnmodel_fix_grid_seed_lambda__forecast_ens_rollmse
+    )
+    esnmodel__MSE_multistep_fix_grid_seed_lambda_2007_td_ens_consthedge = multistepStepMSFE_2007(    
+        esnmodel_fix_grid_seed_lambda__forecast_ens_consthedge
+    )
+    esnmodel__MSE_multistep_fix_grid_seed_lambda_2007_td_ens_dechedge = multistepStepMSFE_2007(    
+        esnmodel_fix_grid_seed_lambda__forecast_ens_dechedge
+    )
+    esnmodel__MSE_multistep_fix_grid_seed_lambda_2007_td_ens_ftl = multistepStepMSFE_2007(    
+        esnmodel_fix_grid_seed_lambda__forecast_ens_ftl
+    )  
+    esnmodel__MSE_multistep_fix_grid_seed_lambda_2007_td_ens_adahedge = multistepStepMSFE_2007(    
+        esnmodel_fix_grid_seed_lambda__forecast_ens_adahedge
+    )
+
+    # Relative MSFE of ensemble forecast
+    esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_median = (
+        esnmodel__MSE_multistep_fix_grid_seed_lambda_2007_td_ens_median / ref_MSE_2007_fix
+    )
+    esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_sa = (
+        esnmodel__MSE_multistep_fix_grid_seed_lambda_2007_td_ens_sa / ref_MSE_2007_fix
+    )
+    esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_rollmse = (
+        esnmodel__MSE_multistep_fix_grid_seed_lambda_2007_td_ens_rollmse / ref_MSE_2007_fix
+    )   
+    esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_consthedge = (
+        esnmodel__MSE_multistep_fix_grid_seed_lambda_2007_td_ens_consthedge / ref_MSE_2007_fix
+    )
+    esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_dechedge = (
+        esnmodel__MSE_multistep_fix_grid_seed_lambda_2007_td_ens_dechedge / ref_MSE_2007_fix
+    )
+    esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_ftl = (
+        esnmodel__MSE_multistep_fix_grid_seed_lambda_2007_td_ens_ftl / ref_MSE_2007_fix
+    )
+    esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_adahedge = (
+        esnmodel__MSE_multistep_fix_grid_seed_lambda_2007_td_ens_adahedge / ref_MSE_2007_fix
+    )
+
+    # ECDF Plot for ensemble forecasts
+    if DO_PLOTS:
+        for h in OUTPUT_STEPS:
+            esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_baseline = (
+                dict_results_MSFE_base_models[model_name][2].iloc[:,h-1]
+            )
+
+            plt.figure(figsize=(5.7,4))
+            plt.ecdf(
+                x=esnmodel_fix_grid_seed_lambda__RelMSE.iloc[:,h-1].to_numpy().astype(float),
+                color="#758E85",
+                alpha=0.75,
+                linewidth=1.6,
+            )
+            plt.axvline(esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_baseline.item(), 
+                        color='0.2', linestyle='-', linewidth=1.2, 
+                        label=model_name)
+            plt.axvline(esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_median.iloc[:,h-1].item(), 
+                        color='0.2', linestyle=':', linewidth=1.4, 
+                        label=f'Median')
+            plt.axvline(esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_sa.iloc[:,h-1].item(), 
+                        color='C0', linestyle='dashed', linewidth=1.7, 
+                        label=f'SA')
+            plt_xaxis_marker(esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_sa.iloc[:,h-1].item(), y=0,
+                        color='C0', marker="X", markersize=8, alpha=0.5)
+            plt.axvline(esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_rollmse.iloc[:,h-1].item(), 
+                        color='C1', linestyle='dashed', linewidth=1.7, 
+                        label=f'RollMSE')
+            plt_xaxis_marker(esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_rollmse.iloc[:,h-1].item(), y=0.04, 
+                        color='C1', marker="o", markersize=8, alpha=0.5)
+            plt.axvline(esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_ftl.iloc[:,h-1].item(), 
+                        color='C3', linestyle='dashed', linewidth=1.7, 
+                        label=f'FTL')
+            plt_xaxis_marker(esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_ftl.iloc[:,h-1].item(), y=0.,
+                        color='C3', marker="^", markersize=8, alpha=0.5)
+            plt.axvline(esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_consthedge.iloc[:,h-1].item(), 
+                        color='C2', linestyle='dashed', linewidth=1.7, 
+                        label=f'Hedge')
+            plt_xaxis_marker(esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_consthedge.iloc[:,h-1].item(), y=0.08,
+                        color='C2', marker="s", markersize=8, alpha=0.5)
+            plt.axvline(esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_dechedge.iloc[:,h-1].item(), 
+                        color='C6', linestyle='dashed', linewidth=1.7, 
+                        label=f'DecHedge')
+            plt_xaxis_marker(esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_dechedge.iloc[:,h-1].item(), y=0.12,
+                        color='C6', marker="v", markersize=7, alpha=0.5)
+            plt.axvline(esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_adahedge.iloc[:,h-1].item(),
+                        color='C4', linestyle='dashed', linewidth=1.7, 
+                        label=f'AdaHedge')
+            plt_xaxis_marker(esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_adahedge.iloc[:,h-1].item(), y=0.,
+                        color='C4', marker="D", markersize=7, alpha=0.5)
+            # plt.xlim(bin_range)
+            if h == 1:
+                plt.xlim([0.45, 1.15])
+            elif h == 2:
+                plt.xlim([0.75, 1.25])
+            plt.xlabel('Relative MSFE')
+            plt.ylabel('Probability')
+            plt.legend(fontsize='small', loc="lower right", framealpha=1, edgecolor='0.85', fancybox=False)
+            plt.grid(which='major', color="0.85")
+            # if SAVE_PLOTS: 
+            #     plt.savefig(os.path.join(
+            #         PATH_FIGURES, 
+            #         'ecdf_ensembles_multistep_singleESN_A_seed_Medi_MD_fix_2007.pdf'
+            #     ), bbox_inches="tight")
+
+            if SAVE_PLOTS:
+                figname = f'ecdf_{model_name}_multistep_h={h}_lambda_MediumMD_common_lambda_grid.pdf' 
+                plt.savefig(os.path.join(
+                    PATH_FIGURES, 
+                    figname,
+                ), bbox_inches="tight")
+                print(f"[!] Figure saved to figures/ folder as PDF:\n\t{figname}")
+
+            plt.title(f'Relative MSFE ECDF with Ensembles - {model_name}')
+            plt.gca().annotate(
+                f'Note: {ESN_MATRIX_RESAMPLES} reservoir matrix samples', 
+                xy = (1.0, -0.15), xycoords='axes fraction', ha='right', va="center",
+                fontsize=8, color="0.3"
+            )
+            plt.show()
+
+    # Rank models by final MSFE
+    rank_list = []
+    for h in range(1, FORECAST_STEPS+1):
+        ranks_h = esnmodel_fix_grid_seed_lambda__RelMSE.iloc[:,h-1].rank().to_numpy().astype(int)
+        rank_list.append(ranks_h)
+
+    # Plot RollMSE weights over time
+    if DO_PLOTS:
+        for h in OUTPUT_STEPS:
+            plot_top_weights_stack(
+                esnmodel_fix_grid_seed_lambda__weights_ens_rollmse, 
+                rank_list, 
+                top_num=5, 
+                h=h, 
+                model_name=model_name, 
+                method_name="RollMSE",
+                ensemble_suffix="seed_lambda"
+            )
+
+    # Plot DecHedge weights over time
+    if DO_PLOTS:
+        for h in OUTPUT_STEPS:
+            plot_top_weights_stack(
+                esnmodel_fix_grid_seed_lambda__weights_ens_dechedge, 
+                rank_list, 
+                top_num=5, 
+                h=h, 
+                model_name=model_name, 
+                method_name="DecHedge",
+                ensemble_suffix="seed_lambda"
+            )
+
+    # Plot FTL weights over time
+    if DO_PLOTS:
+        for h in OUTPUT_STEPS:
+            plot_top_weights_lines(
+                esnmodel_fix_grid_seed_lambda__weights_ens_ftl, 
+                top_eps=1e-9, 
+                h=h, 
+                model_name=model_name, 
+                method_name="FTL",
+                ensemble_suffix="seed_lambda"
+            )
+
+    # Plot AdaHedge weights over time
+    if DO_PLOTS:
+        for h in OUTPUT_STEPS:
+            plot_top_weights_stack(
+                esnmodel_fix_grid_seed_lambda__weights_ens_adahedge, 
+                rank_list, 
+                top_num=5, 
+                h=h, 
+                model_name=model_name, 
+                method_name="AdaHedge",
+                ensemble_suffix="seed_lambda"
+            )
+
+    # Joint RMSFE, MSFE and relative MSFE table for ensemble forecasts
+    _tmp_table = Table(title=f"Table: {model_name} Ensemble -- λRP [{ESN_MATRIX_RESAMPLES} resamples]", box=box.MINIMAL)
+    _tmp_table.add_column("Combination", justify="right", no_wrap=True)
+    for h in OUTPUT_STEPS:
+        _tmp_table.add_column(f"Rel. MSFE\n h = {h}", justify="left", no_wrap=True)
+        # _tmp_table.add_column(f"Rel. MSFE, h = {h}", justify="center", no_wrap=True)
+    def _tmp_row_lambda (m, multih_msfe, multih_msfe_toRef, multih_msfe_baseline, steps=OUTPUT_STEPS): 
+        idx = [h-1 for h in steps]
+        # _tmp_table.add_row(
+        #     m, *[f"{v1.round(6)}" for v1 in multih_msfe.to_numpy().flatten()[idx]],
+        # )
+        # _tmp_table.add_row(
+        #     m, *[f"{v2.round(3)}" for v2 in multih_msfe_toRef.to_numpy().flatten()[idx]],
+        # )
+        _tmp_table.add_row(
+            m, *[f"{v2.round(3)} [{v1.round(9)}]" for v2, v1 in zip(
+                multih_msfe_toRef.to_numpy().flatten()[idx], multih_msfe.to_numpy().flatten()[idx])
+            ],
+        )
+        multih_perc_change = [
+            (
+                (multih_msfe_toRef.to_numpy().flatten()[i] - multih_msfe_baseline.to_numpy().flatten()[i])
+                / multih_msfe_baseline.to_numpy().flatten()[i]
+            ) * 100
+            for i in idx
+        ]
+        _tmp_table.add_row(
+            "", *[f"{v.round(2):+}" for v in multih_perc_change],
+        )
+    _tmp_row_lambda("Baseline",
+        dict_results_MSFE_base_models[model_name][1],
+        dict_results_MSFE_base_models[model_name][2],
+        dict_results_MSFE_base_models[model_name][2],
+    )
+    _tmp_row_lambda("Median",
+        esnmodel__MSE_multistep_fix_grid_seed_lambda_2007_td_ens_median,
+        esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_median,
+        dict_results_MSFE_base_models[model_name][2],
+    )
+    _tmp_row_lambda("SA",
+        esnmodel__MSE_multistep_fix_grid_seed_lambda_2007_td_ens_sa,
+        esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_sa,
+        dict_results_MSFE_base_models[model_name][2],
+    )
+    _tmp_row_lambda("RollMSE",
+        esnmodel__MSE_multistep_fix_grid_seed_lambda_2007_td_ens_rollmse,
+        esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_rollmse,
+        dict_results_MSFE_base_models[model_name][2],
+    )
+    _tmp_row_lambda("FTL",
+        esnmodel__MSE_multistep_fix_grid_seed_lambda_2007_td_ens_ftl,
+        esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_ftl,
+        dict_results_MSFE_base_models[model_name][2],
+    )
+    _tmp_row_lambda("Const. Hedge",
+        esnmodel__MSE_multistep_fix_grid_seed_lambda_2007_td_ens_consthedge,
+        esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_consthedge,
+        dict_results_MSFE_base_models[model_name][2],
+    )
+    _tmp_row_lambda("Dec. Hedge",
+        esnmodel__MSE_multistep_fix_grid_seed_lambda_2007_td_ens_dechedge,
+        esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_dechedge,
+        dict_results_MSFE_base_models[model_name][2],
+    )
+    _tmp_row_lambda("AdaHedge",
+        esnmodel__MSE_multistep_fix_grid_seed_lambda_2007_td_ens_adahedge,
+        esnmodel__MSE_toRef_multistep_fix_grid_seed_lambda_2007_td_ens_adahedge,
+        dict_results_MSFE_base_models[model_name][2],
+    )
+    console.print(_tmp_table)
+
+#endregion
+
+#endregion
+
+#region // ENSEMBLE ESN W/ DIFFERENT RES. MATRICES, LEAK AND RIDGE --
+
+#%%%
+#region --- Run Ensembles
+
+print("\n\n// ENSEMBLE ESN W/ DIFFERENT RAND. MATRICES, LEAK RATES AND RIDGE PENALTIES ---------\n")
+
+LEAK_RATES = [0.1, 0.3, 0.5, 0.7, 0.9]
+SEEDS_RP_LEAK_LAMBDA = np.linspace(
+    5, 5000, num=ESN_MATRIX_RESAMPLES//(len(LEAK_RATES)*len(RIDGE_PENALTIES))
+)
+# The same matrices within each draw are used across all leak/penalty pairs.
+
+if DO_FORECASTS:
+    print(f"[!] Computing ensemble forecasts... [{ESN_MATRIX_RESAMPLES} resamples]\n")
+
+    print("--- S-MFESN A")
+    #--- Single ESN A
+    results_singleESN_A_fix_grid_seed_leak_lambda = singleESN_A_multistep_fix_grid_seed_leak_lambda(
+        input_size=int(m_data.shape[1] + d_data.shape[1]),
+        reservoir_size=30,
+        dataset_fit_for=dataset2007,
+        steps=FORECAST_STEPS,
+        seed_list=SEEDS_RP_LEAK_LAMBDA,
+        leak_rate_list=LEAK_RATES,
+        lambda_list=RIDGE_PENALTIES,
+        direct=False,
+    )
+    # Pickle results
+    if SAVE_RESULTS:
+        save_to_pickle(
+            results_singleESN_A_fix_grid_seed_leak_lambda, 
+            "results_M__multistep_singleESN_A_fix_grid_seed_leak_lambda.pkl"
+        )
+        print("[!] Results saved to results_rev1/ folder as pickle.")
+    else:
+        print("[!] Results not saved, set SAVE_RESULTS = True to save them.")
+
+    print("--- S-MFESN B")
+    #--- Single ESN B
+    results_singleESN_B_fix_grid_seed_leak_lambda = singleESN_B_multistep_fix_grid_seed_leak_lambda(
+        input_size=int(m_data.shape[1] + d_data.shape[1]),
+        reservoir_size=120,
+        dataset_fit_for=dataset2007,
+        steps=FORECAST_STEPS,
+        seed_list=SEEDS_RP_LEAK_LAMBDA,
+        leak_rate_list=LEAK_RATES,
+        lambda_list=RIDGE_PENALTIES,
+        direct=False,
+    )
+    # Pickle results
+    if SAVE_RESULTS:
+        save_to_pickle(
+            results_singleESN_B_fix_grid_seed_leak_lambda, 
+            "results_M__multistep_singleESN_B_fix_grid_seed_leak_lambda.pkl"
+        )
+        print("[!] Results saved to results_rev1/ folder as pickle.")
+    else:
+        print("[!] Results not saved, set SAVE_RESULTS = True to save them.")
+
+    print("--- M-MFESN A")
+    #--- Multi ESN A
+    results_multiESN_A_fix_grid_seed_leak_lambda = multiESN_A_multistep_fix_grid_seed_leak_lambda(
+        input_size=(m_data.shape[1], d_data.shape[1]),
+        reservoir_size=(100, 20),
+        dataset_fit_for=dataset2007,
+        steps=FORECAST_STEPS,
+        seed_list=SEEDS_RP_LEAK_LAMBDA,
+        leak_rate_list=LEAK_RATES,
+        lambda_list=RIDGE_PENALTIES,
+        direct=False,
+    )
+    # Pickle results
+    if SAVE_RESULTS:
+        save_to_pickle(
+            results_multiESN_A_fix_grid_seed_leak_lambda, 
+            "results_M__multistep_multiESN_A_fix_grid_seed_leak_lambda.pkl"
+        )
+        print("[!] Results saved to results_rev1/ folder as pickle.")
+    else:
+        print("[!] Results not saved, set SAVE_RESULTS = True to save them.")
+
+    print("--- M-MFESN B")
+    #--- Multi ESN B
+    results_multiESN_B_fix_grid_seed_leak_lambda = multiESN_B_multistep_fix_grid_seed_leak_lambda(
+        input_size=(m_data.shape[1], d_data.shape[1]),
+        reservoir_size=(100, 20),
+        dataset_fit_for=dataset2007,
+        steps=FORECAST_STEPS,
+        seed_list=SEEDS_RP_LEAK_LAMBDA,
+        leak_rate_list=LEAK_RATES,
+        lambda_list=RIDGE_PENALTIES,
+        direct=False,
+    )
+    # Pickle results
+    if SAVE_RESULTS:
+        save_to_pickle(
+            results_multiESN_B_fix_grid_seed_leak_lambda,
+            "results_M__multistep_multiESN_B_fix_grid_seed_leak_lambda.pkl"
+        )
+        print("[!] Results saved to results_rev1/ folder as pickle.")
+    else:
+        print("[!] Results not saved, set SAVE_RESULTS = True to save them.")
+
+    # Export to CSVs
+    if SAVE_CSVS:
+        os.makedirs(PATH_EXPORTS, exist_ok=True)
+        for h in OUTPUT_STEPS:
+            results_singleESN_A_fix_grid_seed_leak_lambda[0][h-1].to_csv(
+                os.path.join(PATH_EXPORTS, f"results_singleESN_A_fix_multistep_grid_seed_leak_lambda_for_2007_h={h}.csv"),
+                index=True,
+                header=True,
+            )
+            results_singleESN_B_fix_grid_seed_leak_lambda[0][h-1].to_csv(
+                os.path.join(PATH_EXPORTS, f"results_singleESN_B_fix_multistep_grid_seed_leak_lambda_for_2007_h={h}.csv"),
+                index=True,
+                header=True,
+            )
+            results_multiESN_A_fix_grid_seed_leak_lambda[0][h-1].to_csv(
+                os.path.join(PATH_EXPORTS, f"results_multiESN_A_fix_multistep_grid_seed_leak_lambda_for_2007_h={h}.csv"),
+                index=True,
+                header=True,
+            )
+            results_multiESN_B_fix_grid_seed_leak_lambda[0][h-1].to_csv(
+                os.path.join(PATH_EXPORTS, f"results_multiESN_B_fix_multistep_grid_seed_leak_lambda_for_2007_h={h}.csv"),
+                index=True,
+                header=True,
+            )
+        print("\n[!] Results exported to results/ folder as CSVs.")
+    else:
+        print("\n[!] Results not exported, set SAVE_CSVS = True to save them.")
+
+else:
+    # Load results
+    results_singleESN_A_fix_grid_seed_leak_lambda = load_from_pickle(
+        "results_M__multistep_singleESN_A_fix_grid_seed_leak_lambda.pkl"
+    )
+    assert not results_singleESN_A_fix_grid_seed_leak_lambda is None
+
+    results_singleESN_B_fix_grid_seed_leak_lambda = load_from_pickle(
+        "results_M__multistep_singleESN_B_fix_grid_seed_leak_lambda.pkl"
+    )
+    assert not results_singleESN_B_fix_grid_seed_leak_lambda is None
+
+    results_multiESN_A_fix_grid_seed_leak_lambda = load_from_pickle(
+        "results_M__multistep_multiESN_A_fix_grid_seed_leak_lambda.pkl"
+    )
+    assert not results_multiESN_A_fix_grid_seed_leak_lambda is None
+
+    results_multiESN_B_fix_grid_seed_leak_lambda = load_from_pickle(
+        "results_M__multistep_multiESN_B_fix_grid_seed_leak_lambda.pkl"
+    )
+    assert not results_multiESN_B_fix_grid_seed_leak_lambda is None
+
+    print("[!] Results loaded from results_rev1/ folder as pickle.")
+
+dict_results_ens_fix_grid_seed_leak_lambda_models = {
+    "S-MFESN_A": results_singleESN_A_fix_grid_seed_leak_lambda,
+    "S-MFESN_B": results_singleESN_B_fix_grid_seed_leak_lambda,
+    "M-MFESN_A": results_multiESN_A_fix_grid_seed_leak_lambda,
+    "M-MFESN_B": results_multiESN_B_fix_grid_seed_leak_lambda,
+}
+
+#endregion
+
+
+#%%%
+#region --- Construct Plots and Tables
+
+for model_name, results in dict_results_ens_fix_grid_seed_leak_lambda_models.items():
+    print(f"\n--- Ensemble Combination // {model_name} ---\n")
+
+    # Unwrap result tuple
+    (esnmodel_fix_grid_seed_leak_lambda__forecast, 
+    esnmodel_fix_grid_seed_leak_lambda__sfe,
+    esnmodel_fix_grid_seed_leak_lambda__msfe,
+    esnmodel_fix_grid_seed_leak_lambda__lr_list,
+    ) = results
+
+    esnmodel_fix_grid_seed_leak_lambda__MSFE = multistepStepMSFE_ensemble_2007(
+        esnmodel_fix_grid_seed_leak_lambda__forecast
+    )
+    esnmodel_fix_grid_seed_leak_lambda__RelMSE = multistepRelativeMSFE_ensemble_2007(
+        esnmodel_fix_grid_seed_leak_lambda__MSFE, ref_MSE_2007_fix
+    )
+
+    if OPTIONAL_PLOTS:
+        # plt.figure(figsize=(5,3))
+        # plt.plot(
+        #     esnmodel_fix_grid_seed_leak_lambda__RelMSE,
+        #     color='lightgray',
+        #     alpha=np.minimum(0.5, 10/ESN_MATRIX_RESAMPLES),
+        # )
+        # # plt.title(f'Single ESN A: Relative MSFE Distribution over {ESN_MATRIX_RESAMPLES} Resamplings\n(Fixed Parameters, Pre-Crisis Evaluation, h={h})')
+        # plt.xticks(range(FORECAST_STEPS))
+        # # plt.yticks(np.linspace(0.7, 1.1, num=9))
+        # plt.ylabel('Relative MSFE')
+        # plt.grid(axis='y', which='both', linestyle='--', linewidth=0.5)
+        # # if SAVE_PLOTS:
+        # #     plt.savefig(
+        # #         os.path.join(
+        # #             PATH_FIGURES, 
+        # #             f'figure_M__multistep_singleESN_A_fix_grid_seed_relMSFE_h{h}.png'
+        # #         ),
+        # #         dpi=300,
+        # #         bbox_inches='tight',
+        # #     )
+        # plt.show()
+        pass
+
+    # Compute ensemble forecasts
+    # Median
+    esnmodel_fix_grid_seed_leak_lambda__forecast_ens_median, _ = median_for(
+        esnmodel_fix_grid_seed_leak_lambda__forecast
+    )
+
+    # Simple Average
+    esnmodel_fix_grid_seed_leak_lambda__forecast_ens_sa, _ = sa_comb_for(
+        esnmodel_fix_grid_seed_leak_lambda__forecast
+    )
+
+    # RollMSE
+    (esnmodel_fix_grid_seed_leak_lambda__forecast_ens_rollmse, 
+    esnmodel_fix_grid_seed_leak_lambda__weights_ens_rollmse) = rollmse_comb_for(
+        esnmodel_fix_grid_seed_leak_lambda__forecast
+    )
+
+    # Constant Hedge
+    (esnmodel_fix_grid_seed_leak_lambda__forecast_ens_consthedge, 
+    esnmodel_fix_grid_seed_leak_lambda__weights_ens_consthedge) = const_hedge_comb_for(
+        esnmodel_fix_grid_seed_leak_lambda__forecast,
+        esnmodel_fix_grid_seed_leak_lambda__sfe,
+    )
+
+    if DO_PLOTS and OPTIONAL_PLOTS:
+        # plot_comb_weights(
+        #     esnmodel_fix_grid_seed_leak_lambda__weights_ens_consthedge,
+        #     h=1,
+        #     method_name="Constant Hedge"
+        # )
+        pass
+
+    # Decreasing Hedge
+    (esnmodel_fix_grid_seed_leak_lambda__forecast_ens_dechedge, 
+    esnmodel_fix_grid_seed_leak_lambda__weights_ens_dechedge) = dec_hedge_comb_for(
+        esnmodel_fix_grid_seed_leak_lambda__forecast,
+        esnmodel_fix_grid_seed_leak_lambda__sfe,
+    )
+
+    if DO_PLOTS and OPTIONAL_PLOTS:
+        # plot_comb_weights(
+        #     esnmodel_fix_grid_seed_leak_lambda__weights_ens_dechedge,
+        #     h=1,
+        #     method_name="Decreasing Hedge"
+        # )
+        pass
+
+    # Follow-The-Leader
+    (esnmodel_fix_grid_seed_leak_lambda__forecast_ens_ftl, 
+    esnmodel_fix_grid_seed_leak_lambda__weights_ens_ftl) = ftl_comb_for(
+        esnmodel_fix_grid_seed_leak_lambda__forecast,
+        esnmodel_fix_grid_seed_leak_lambda__sfe,
+    )
+
+    if DO_PLOTS and OPTIONAL_PLOTS:
+        # plot_comb_weights(
+        #     esnmodel_fix_grid_seed_leak_lambda__weights_ens_ftl,
+        #     h=1,
+        #     method_name="Follow-The-Leader"
+        # )
+        pass
+
+    # Adaptive Hedge
+    (esnmodel_fix_grid_seed_leak_lambda__forecast_ens_adahedge, 
+    esnmodel_fix_grid_seed_leak_lambda__weights_ens_adahedge) = adahedge_comb_for(
+        esnmodel_fix_grid_seed_leak_lambda__forecast,
+        esnmodel_fix_grid_seed_leak_lambda__sfe,
+    )
+
+    if DO_PLOTS and OPTIONAL_PLOTS:
+        # plot_comb_weights(
+        #     esnmodel_fix_grid_seed_leak_lambda__weights_ens_adahedge,
+        #     h=1,
+        #     method_name="Adaptive Hedge"
+        # )
+        pass
+
+    # (Optional) Plot combination methods forecasts against actuals
+    if DO_PLOTS and OPTIONAL_PLOTS:
+        for h in OUTPUT_STEPS:
+            plt.figure(figsize=(10,4))
+            plt.plot(
+                dataset2007['GDP_data_test'],
+                color='black', linewidth=2, label='Target',
+            )
+            t_idx = list(range(h-1, (dataset2007['GDP_data_test'].shape[0]-FORECAST_STEPS+h)))
+            plt.plot(
+                dict_results_MSFE_base_models[model_name][0].iloc[t_idx,h-1],
+                color='C7', alpha=0.7, linewidth=1.5, label=model_name,
+            )
+            plt.plot(
+                esnmodel_fix_grid_seed_leak_lambda__forecast_ens_median.iloc[t_idx,h-1],
+                color='C8', alpha=0.7, linewidth=1.5, label='Median',
+            )
+            plt.plot(
+                esnmodel_fix_grid_seed_leak_lambda__forecast_ens_sa.iloc[t_idx,h-1],
+                color='C0', alpha=0.7, linewidth=1.5, ls=":", label='SA',
+            )
+            plt.plot(
+                esnmodel_fix_grid_seed_leak_lambda__forecast_ens_rollmse.iloc[t_idx,h-1],
+                color='C1', alpha=0.7, linewidth=1.5, ls=":", label='RollMSE',
+            )
+            plt.plot(
+                esnmodel_fix_grid_seed_leak_lambda__forecast_ens_consthedge.iloc[t_idx,h-1],
+                color='C2', alpha=0.7, linewidth=1.5, ls="--", label='Const. Hedge',
+            )
+            plt.plot(
+                esnmodel_fix_grid_seed_leak_lambda__forecast_ens_dechedge.iloc[t_idx,h-1],
+                color='C6', alpha=0.7, linewidth=1.5, ls="--", label='Dec. Hedge',
+            )
+            plt.plot(
+                esnmodel_fix_grid_seed_leak_lambda__forecast_ens_ftl.iloc[t_idx,h-1],
+                color='C3', alpha=0.7, linewidth=1.5, label='FTL',
+            )
+            plt.plot(
+                esnmodel_fix_grid_seed_leak_lambda__forecast_ens_adahedge.iloc[t_idx,h-1],
+                color='C4', alpha=0.7, linewidth=1.5, label='AdaHedge',
+            )
+            plt.title(f"{model_name} Ensemble -- αRP // Forecast vs Targets (h={h})")
+            plt.xlabel('Time Index')
+            plt.ylabel('GDP Growth Rate')
+            plt.legend()
+            plt.grid(axis='y', which='both', linestyle='--', linewidth=0.5)
+            plt.show()
+
+    # MSFE of ensemble forecast
+    esnmodel__MSE_multistep_fix_grid_seed_leak_lambda_2007_td_ens_median = multistepStepMSFE_2007(    
+        esnmodel_fix_grid_seed_leak_lambda__forecast_ens_median
+    )
+    esnmodel__MSE_multistep_fix_grid_seed_leak_lambda_2007_td_ens_sa = multistepStepMSFE_2007(
+        esnmodel_fix_grid_seed_leak_lambda__forecast_ens_sa
+    )
+    esnmodel__MSE_multistep_fix_grid_seed_leak_lambda_2007_td_ens_rollmse = multistepStepMSFE_2007(
+        esnmodel_fix_grid_seed_leak_lambda__forecast_ens_rollmse
+    )
+    esnmodel__MSE_multistep_fix_grid_seed_leak_lambda_2007_td_ens_consthedge = multistepStepMSFE_2007(    
+        esnmodel_fix_grid_seed_leak_lambda__forecast_ens_consthedge
+    )
+    esnmodel__MSE_multistep_fix_grid_seed_leak_lambda_2007_td_ens_dechedge = multistepStepMSFE_2007(    
+        esnmodel_fix_grid_seed_leak_lambda__forecast_ens_dechedge
+    )
+    esnmodel__MSE_multistep_fix_grid_seed_leak_lambda_2007_td_ens_ftl = multistepStepMSFE_2007(    
+        esnmodel_fix_grid_seed_leak_lambda__forecast_ens_ftl
+    )  
+    esnmodel__MSE_multistep_fix_grid_seed_leak_lambda_2007_td_ens_adahedge = multistepStepMSFE_2007(    
+        esnmodel_fix_grid_seed_leak_lambda__forecast_ens_adahedge
+    )
+
+    # Relative MSFE of ensemble forecast
+    esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_median = (
+        esnmodel__MSE_multistep_fix_grid_seed_leak_lambda_2007_td_ens_median / ref_MSE_2007_fix
+    )
+    esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_sa = (
+        esnmodel__MSE_multistep_fix_grid_seed_leak_lambda_2007_td_ens_sa / ref_MSE_2007_fix
+    )
+    esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_rollmse = (
+        esnmodel__MSE_multistep_fix_grid_seed_leak_lambda_2007_td_ens_rollmse / ref_MSE_2007_fix
+    )   
+    esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_consthedge = (
+        esnmodel__MSE_multistep_fix_grid_seed_leak_lambda_2007_td_ens_consthedge / ref_MSE_2007_fix
+    )
+    esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_dechedge = (
+        esnmodel__MSE_multistep_fix_grid_seed_leak_lambda_2007_td_ens_dechedge / ref_MSE_2007_fix
+    )
+    esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_ftl = (
+        esnmodel__MSE_multistep_fix_grid_seed_leak_lambda_2007_td_ens_ftl / ref_MSE_2007_fix
+    )
+    esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_adahedge = (
+        esnmodel__MSE_multistep_fix_grid_seed_leak_lambda_2007_td_ens_adahedge / ref_MSE_2007_fix
+    )
+
+    # ECDF Plot for ensemble forecasts
+    if DO_PLOTS:
+        for h in OUTPUT_STEPS:
+            esnmodel__MSE_toRef_multistep_fix_grid_seed_2007_td_baseline = (
+                dict_results_MSFE_base_models[model_name][2].iloc[:,h-1]
+            )
+
+            plt.figure(figsize=(5.7,4))
+            plt.ecdf(
+                x=esnmodel_fix_grid_seed_leak_lambda__RelMSE.iloc[:,h-1].to_numpy().astype(float),
+                color="#758E85",
+                alpha=0.75,
+                linewidth=1.6,
+            )
+            plt.axvline(esnmodel__MSE_toRef_multistep_fix_grid_seed_2007_td_baseline.item(), 
+                        color='0.2', linestyle='-', linewidth=1.2, 
+                        label=model_name)
+            plt.axvline(esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_median.iloc[:,h-1].item() , 
+                        color='0.2', linestyle=':', linewidth=1.4, 
+                        label=f'Median')
+            plt.axvline(esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_sa.iloc[:,h-1].item(), 
+                        color='C0', linestyle='dashed', linewidth=1.7, 
+                        label=f'SA')
+            plt_xaxis_marker(esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_sa.iloc[:,h-1].item(), y=0,
+                        color='C0', marker="X", markersize=8, alpha=0.5)
+            plt.axvline(esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_rollmse.iloc[:,h-1].item(), 
+                        color='C1', linestyle='dashed', linewidth=1.7, 
+                        label=f'RollMSE')
+            plt_xaxis_marker(esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_rollmse.iloc[:,h-1].item(), y=0.04, 
+                        color='C1', marker="o", markersize=8, alpha=0.5)
+            plt.axvline(esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_ftl.iloc[:,h-1].item(), 
+                        color='C3', linestyle='dashed', linewidth=1.7, 
+                        label=f'FTL')
+            plt_xaxis_marker(esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_ftl.iloc[:,h-1].item(), y=0.,
+                        color='C3', marker="^", markersize=8, alpha=0.5)
+            plt.axvline(esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_consthedge.iloc[:,h-1].item(), 
+                        color='C2', linestyle='dashed', linewidth=1.7, 
+                        label=f'Hedge')
+            plt_xaxis_marker(esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_consthedge.iloc[:,h-1].item(), y=0.08,
+                        color='C2', marker="s", markersize=8, alpha=0.5)
+            plt.axvline(esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_dechedge.iloc[:,h-1].item(), 
+                        color='C6', linestyle='dashed', linewidth=1.7, 
+                        label=f'DecHedge')
+            plt_xaxis_marker(esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_dechedge.iloc[:,h-1].item(), y=0.12,
+                        color='C6', marker="v", markersize=7, alpha=0.5)
+            plt.axvline(esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_adahedge.iloc[:,h-1].item(),
+                        color='C4', linestyle='dashed', linewidth=1.7, 
+                        label=f'AdaHedge')
+            plt_xaxis_marker(esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_adahedge.iloc[:,h-1].item(), y=0.,
+                        color='C4', marker="D", markersize=7, alpha=0.5)
+            # plt.xlim(bin_range)
+            if h == 1:
+                plt.xlim([0.35, 1.15])
+            elif h == 2:
+                plt.xlim([0.65, 1.25])
+            plt.xlabel('Relative MSFE')
+            plt.ylabel('Probability')
+            plt.legend(fontsize='small', loc="lower right", framealpha=1, edgecolor='0.85', fancybox=False)
+            plt.grid(which='major', color="0.85")
+            # if SAVE_PLOTS: 
+            #     plt.savefig(os.path.join(
+            #         PATH_FIGURES, 
+            #         'ecdf_ensembles_multistep_singleESN_A_seed_leak_Medi_MD_fix_2007.pdf'
+            #     ), bbox_inches="tight")
+
+            if SAVE_PLOTS:
+                figname = f'ecdf_{model_name}_multistep_h={h}_alpha_lambda_MediumMD_common_lambda_grid.pdf' 
+                plt.savefig(os.path.join(
+                    PATH_FIGURES, 
+                    figname,
+                ), bbox_inches="tight")
+                print(f"[!] Figure saved to figures/ folder as PDF:\n\t{figname}")
+
+            plt.title(f'Relative MSFE ECDF with Ensembles - {model_name}')
+            plt.gca().annotate(
+                f'Note: {ESN_MATRIX_RESAMPLES} reservoir matrix samples', 
+                xy = (1.0, -0.15), xycoords='axes fraction', ha='right', va="center",
+                fontsize=8, color="0.3"
+            )
+            plt.show()
+
+    # Plot ECDF by leak rate
+    if DO_PLOTS:
+        results_by_leak_list = []
+        for res in split_by_leak_rate(results):
+            leak_rate = res["leak_rate"]
+            forecast_dfs = res["forecast_dfs"]
+            msfe_dfs = multistepStepMSFE_ensemble_2007(forecast_dfs)
+            rel_msfe = multistepRelativeMSFE_ensemble_2007(
+                msfe_dfs, ref_MSE_2007_fix
+            )
+            results_by_leak_list.append( (leak_rate, rel_msfe) )
+
+        for h in OUTPUT_STEPS:
+            plot_msfe_ecdf_by_leak_rate(
+                esnmodel_fix_grid_seed_leak_lambda__RelMSE.iloc[:, h-1].to_numpy().astype(float), 
+                [(r[0], r[1].iloc[:, h-1].to_numpy().astype(float)) for r in results_by_leak_list], 
+                model_name=model_name,
+                h=h,
+                ensemble_suffix="seed_leak_lambda",
+            )
+
+    # Rank models by final MSFE
+    rank_list = []
+    for h in range(1, FORECAST_STEPS+1):
+        ranks_h = esnmodel_fix_grid_seed_leak_lambda__RelMSE.iloc[:,h-1].rank().to_numpy().astype(int)
+        rank_list.append(ranks_h)
+
+    # Plot RollMSE weights over time
+    if DO_PLOTS:
+        for h in OUTPUT_STEPS:
+            plot_top_weights_stack(
+                esnmodel_fix_grid_seed_leak_lambda__weights_ens_rollmse, 
+                rank_list, 
+                top_num=5, 
+                h=h, 
+                model_name=model_name, 
+                method_name="RollMSE",
+                ensemble_suffix="seed_leak_lambda"
+            )
+
+    # Plot DecHedge weights over time
+    if DO_PLOTS:
+        for h in OUTPUT_STEPS:
+            plot_top_weights_stack(
+                esnmodel_fix_grid_seed_leak_lambda__weights_ens_dechedge, 
+                rank_list, 
+                top_num=5, 
+                h=h, 
+                model_name=model_name, 
+                method_name="DecHedge",
+                ensemble_suffix="seed_leak_lambda"
+            )
+
+    # Plot FTL weights over time
+    if DO_PLOTS:
+        for h in OUTPUT_STEPS:
+            plot_top_weights_lines(
+                esnmodel_fix_grid_seed_leak_lambda__weights_ens_ftl, 
+                top_eps=1e-9, 
+                h=h, 
+                model_name=model_name, 
+                method_name="FTL",
+                ensemble_suffix="seed_leak_lambda"
+            )
+
+    # Plot AdaHedge weights over time
+    if DO_PLOTS:
+        for h in OUTPUT_STEPS:
+            plot_top_weights_stack(
+                esnmodel_fix_grid_seed_leak_lambda__weights_ens_adahedge, 
+                rank_list, 
+                top_num=5, 
+                h=h, 
+                model_name=model_name, 
+                method_name="AdaHedge",
+                ensemble_suffix="seed_leak_lambda"
+            )
+
+    # Joint RMSFE, MSFE and relative MSFE table for ensemble forecasts
+    _tmp_table = Table(title=f"Table: {model_name} Ensemble -- αλRP [{ESN_MATRIX_RESAMPLES} resamples]", box=box.MINIMAL)
+    _tmp_table.add_column("Combination", justify="right", no_wrap=True)
+    for h in OUTPUT_STEPS:
+        _tmp_table.add_column(f"Rel. MSFE\n h = {h}", justify="left", no_wrap=True)
+        # _tmp_table.add_column(f"Rel. MSFE, h = {h}", justify="center", no_wrap=True)
+    def _tmp_row_lambda (m, multih_msfe, multih_msfe_toRef, multih_msfe_baseline, steps=OUTPUT_STEPS): 
+        idx = [h-1 for h in steps]
+        # _tmp_table.add_row(
+        #     m, *[f"{v1.round(6)}" for v1 in multih_msfe.to_numpy().flatten()[idx]],
+        # )
+        # _tmp_table.add_row(
+        #     m, *[f"{v2.round(3)}" for v2 in multih_msfe_toRef.to_numpy().flatten()[idx]],
+        # )
+        _tmp_table.add_row(
+            m, *[f"{v2.round(3)} [{v1.round(9)}]" for v2, v1 in zip(
+                multih_msfe_toRef.to_numpy().flatten()[idx], multih_msfe.to_numpy().flatten()[idx])
+            ],
+        )
+        multih_perc_change = [
+            (
+                (multih_msfe_toRef.to_numpy().flatten()[i] - multih_msfe_baseline.to_numpy().flatten()[i])
+                / multih_msfe_baseline.to_numpy().flatten()[i]
+            ) * 100
+            for i in idx
+        ]
+        _tmp_table.add_row(
+            "", *[f"{v.round(2):+}" for v in multih_perc_change],
+        )
+    _tmp_row_lambda("Baseline",
+        dict_results_MSFE_base_models[model_name][1],
+        dict_results_MSFE_base_models[model_name][2],
+        dict_results_MSFE_base_models[model_name][2],
+    )
+    _tmp_row_lambda("Median",
+        esnmodel__MSE_multistep_fix_grid_seed_leak_lambda_2007_td_ens_median,
+        esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_median,
+        dict_results_MSFE_base_models[model_name][2],
+    )
+    _tmp_row_lambda("SA",
+        esnmodel__MSE_multistep_fix_grid_seed_leak_lambda_2007_td_ens_sa,
+        esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_sa,
+        dict_results_MSFE_base_models[model_name][2],
+    )
+    _tmp_row_lambda("RollMSE",
+        esnmodel__MSE_multistep_fix_grid_seed_leak_lambda_2007_td_ens_rollmse,
+        esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_rollmse,
+        dict_results_MSFE_base_models[model_name][2],
+    )
+    _tmp_row_lambda("FTL",
+        esnmodel__MSE_multistep_fix_grid_seed_leak_lambda_2007_td_ens_ftl,
+        esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_ftl,
+        dict_results_MSFE_base_models[model_name][2],
+    )
+    _tmp_row_lambda("Const. Hedge",
+        esnmodel__MSE_multistep_fix_grid_seed_leak_lambda_2007_td_ens_consthedge,
+        esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_consthedge,
+        dict_results_MSFE_base_models[model_name][2],
+    )
+    _tmp_row_lambda("Dec. Hedge",
+        esnmodel__MSE_multistep_fix_grid_seed_leak_lambda_2007_td_ens_dechedge,
+        esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_dechedge,
+        dict_results_MSFE_base_models[model_name][2],
+    )
+    _tmp_row_lambda("AdaHedge",
+        esnmodel__MSE_multistep_fix_grid_seed_leak_lambda_2007_td_ens_adahedge,
+        esnmodel__MSE_toRef_multistep_fix_grid_seed_leak_lambda_2007_td_ens_adahedge,
         dict_results_MSFE_base_models[model_name][2],
     )
     console.print(_tmp_table)

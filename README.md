@@ -8,29 +8,34 @@
 <br>
 <sup>3</sup>Bank for International Settlements - The views expressed in this work are solely those of the authors and do not necessarily reflect those of the Bank for International Settlements.
 
-#### Project structure:
+Code and saved results for the paper's GDP forecasting exercises and
+forecast-combination simulations.
 
-* `data`: data loaded to construct forecasts. 
+**[Detailed reproduction guide: tables, figures, commands and required data](REPRODUCING.md)**
 
-* `figures_multistep`: all exported figures used in the paper. 
+## Project structure
 
-* `results`: pickled (`.pkl`) files for all numerical experiments in the paper. 
+- `python/`: forecasting, forecast-combination and simulation scripts.
+- `results*_rev1/`: revised saved forecasts, losses, seeds and exercise notes.
+- [tables_rev1/](tables_rev1/): manuscript table exports.
+- [figures_rev1/](figures_rev1/): manuscript figure panels.
+- [data/](data/): supplied DFM benchmark predictions and data-access notes.
+- `results/` and `figures_multistep/`: historical public-release outputs.
 
-* `python`: model code; multi-frequency ESN model libraries; script with estimation, forecasting and simulations for the Medium-MD dataset.
+## Using the code
 
-    - Please check `requirements.txt` before running.
+The supplied saved results allow the manuscript tables and figures to be
+reproduced without refitting the GDP models or obtaining the original predictor
+panel. See [REPRODUCING.md](REPRODUCING.md) for the script-to-table/figure map,
+commands, full-regeneration options and numerical limitations.
+Dependencies are listed in [pyproject.toml](pyproject.toml).
 
-    - Run `ensemble_multistep_medium_md.py` to run forecast combinations and build tables/plots.
+## Data access
 
-    - Flag `DO_FORECASTS = False` is required, as the full dataset cannot currently be shared due to licensing restrictions. Forecasts will be loaded from disk.
-
-    - Set `DO_PLOTS = True` to also generate main plots.
-
-    - Set `OPTIONAL_PLOTS = True` to generate optional plots.
-
-    - Modify `PATH_PREFIX` as needed on your machine.
-
-For details regarding data copyrights and sources, please refer to `data/README.md`.
+The original GDP predictor data are not distributed because of licensing
+restrictions. Full GDP re-estimation requires those inputs to be obtained
+separately; the simulation exercises generate their own data or losses.
+See the [data-access notes](data/README.md).
 
 ## Acknowledgements
 

@@ -1,0 +1,286 @@
+{
+  "exercise": "Random-subset experts, Tables J.2/J.3",
+  "B": 500,
+  "J": 30,
+  "T_test": 1000,
+  "burnin": 200,
+  "base_seed": 12345,
+  "expert_seed_offset": 1000000,
+  "eta": 0.5,
+  "c0": 2,
+  "rolling_window": 4,
+  "rolling_epsilon": 1e-09,
+  "corrected_aggregation": true,
+  "raw_update_and_evaluation": true,
+  "unique_pools": 27000,
+  "scenario_replications": 54000,
+  "expert_forecasts_included": false,
+  "methods": [
+    "Median",
+    "SA",
+    "RollMSE",
+    "FTL",
+    "Hedge",
+    "DecHedge",
+    "AdaHedge"
+  ],
+  "designs": [
+    "baseline",
+    "robustness"
+  ],
+  "scenarios": [
+    "oracle",
+    "no_oracle"
+  ],
+  "grids": [
+    {
+      "file": "g01.npz",
+      "regime": "small_only",
+      "p": 10,
+      "T_train": 100
+    },
+    {
+      "file": "g02.npz",
+      "regime": "small_only",
+      "p": 10,
+      "T_train": 300
+    },
+    {
+      "file": "g03.npz",
+      "regime": "small_only",
+      "p": 10,
+      "T_train": 500
+    },
+    {
+      "file": "g04.npz",
+      "regime": "small_only",
+      "p": 100,
+      "T_train": 100
+    },
+    {
+      "file": "g05.npz",
+      "regime": "small_only",
+      "p": 100,
+      "T_train": 300
+    },
+    {
+      "file": "g06.npz",
+      "regime": "small_only",
+      "p": 100,
+      "T_train": 500
+    },
+    {
+      "file": "g07.npz",
+      "regime": "small_only",
+      "p": 200,
+      "T_train": 100
+    },
+    {
+      "file": "g08.npz",
+      "regime": "small_only",
+      "p": 200,
+      "T_train": 300
+    },
+    {
+      "file": "g09.npz",
+      "regime": "small_only",
+      "p": 200,
+      "T_train": 500
+    },
+    {
+      "file": "g10.npz",
+      "regime": "mixed",
+      "p": 10,
+      "T_train": 100
+    },
+    {
+      "file": "g11.npz",
+      "regime": "mixed",
+      "p": 10,
+      "T_train": 300
+    },
+    {
+      "file": "g12.npz",
+      "regime": "mixed",
+      "p": 10,
+      "T_train": 500
+    },
+    {
+      "file": "g13.npz",
+      "regime": "mixed",
+      "p": 100,
+      "T_train": 100
+    },
+    {
+      "file": "g14.npz",
+      "regime": "mixed",
+      "p": 100,
+      "T_train": 300
+    },
+    {
+      "file": "g15.npz",
+      "regime": "mixed",
+      "p": 100,
+      "T_train": 500
+    },
+    {
+      "file": "g16.npz",
+      "regime": "mixed",
+      "p": 200,
+      "T_train": 100
+    },
+    {
+      "file": "g17.npz",
+      "regime": "mixed",
+      "p": 200,
+      "T_train": 300
+    },
+    {
+      "file": "g18.npz",
+      "regime": "mixed",
+      "p": 200,
+      "T_train": 500
+    },
+    {
+      "file": "g19.npz",
+      "regime": "large_only",
+      "p": 10,
+      "T_train": 100
+    },
+    {
+      "file": "g20.npz",
+      "regime": "large_only",
+      "p": 10,
+      "T_train": 300
+    },
+    {
+      "file": "g21.npz",
+      "regime": "large_only",
+      "p": 10,
+      "T_train": 500
+    },
+    {
+      "file": "g22.npz",
+      "regime": "large_only",
+      "p": 100,
+      "T_train": 100
+    },
+    {
+      "file": "g23.npz",
+      "regime": "large_only",
+      "p": 100,
+      "T_train": 300
+    },
+    {
+      "file": "g24.npz",
+      "regime": "large_only",
+      "p": 100,
+      "T_train": 500
+    },
+    {
+      "file": "g25.npz",
+      "regime": "large_only",
+      "p": 200,
+      "T_train": 100
+    },
+    {
+      "file": "g26.npz",
+      "regime": "large_only",
+      "p": 200,
+      "T_train": 300
+    },
+    {
+      "file": "g27.npz",
+      "regime": "large_only",
+      "p": 200,
+      "T_train": 500
+    }
+  ],
+  "files": {
+    "g01.npz": "0dc604703800916833ffb513301ed541e130b1766572e3ea865619c41a96fc64",
+    "g02.npz": "fd5020df946f4d818d119433e080b7ea3d1ff4f22f9f7c09e508166667523958",
+    "g03.npz": "b8afe2d1f31d1347b3714503397bd886cef8be2162b8cb0232f39915a3dfefc5",
+    "g04.npz": "f7e3d376a82545a3beadb45d716bb981737b07fa64eb027ab7843b4983a785b7",
+    "g05.npz": "fa1d3331aaf46fde79713fac78871070c3dfaa692b484952f39d7de4eb39e53e",
+    "g06.npz": "08f1dbfa8f35670b5f8f5cb63a97b554711214483d54932117e4b6979b59b690",
+    "g07.npz": "9766e4fda6c059ff7881f04802b01abfc885476d484b09d77a6461ef479a4452",
+    "g08.npz": "20e2dde393b617e81a819da8afa36ca75cf01a30d6461ff58d88cde730f5e065",
+    "g09.npz": "c75731d6d606bed3b32255b764934d9363d9662f80246593865c0239f353b7c3",
+    "g10.npz": "5e2c3b530032370f8533d5da26a9a1ea8ce4e02820a8f63badfa2cb0c17f3b6c",
+    "g11.npz": "3ac4839625bdebfe27d70080c492b555eac5a5871c543204f12f061e1df41d19",
+    "g12.npz": "bb8e80846b8416e27e4c1e383d5628000e53cd65b1bcb0c514ebf4217aa8319d",
+    "g13.npz": "da151c14c764f6c25c1adb2b9ca81a4d7b80d2046b6b1a231e429a72efccb9f3",
+    "g14.npz": "769703889d4096d900aa43e772953c16b4fd1732b00a45bdfd3d0cd0f7a198a7",
+    "g15.npz": "299afcde57354fd294ddfd05324de866e46ecb14fbc56693c370251a8531d888",
+    "g16.npz": "954c607a938ed0072dc8f0c445d19fe002ca6fe3e25e49c57c9f3fd7cd956297",
+    "g17.npz": "a328a8e7986ee8a2db7de31a660f03fd30215686330c993a2fbd0b3cf094f8c1",
+    "g18.npz": "bc5d4786ff4b5130e383b4ca7dc34c850e287b807b17f4a04fdeee3a2c83ac16",
+    "g19.npz": "e9be90b6fe6f09c789febae982b85cca903422be7a11a29b7c4a2d0b8825be5c",
+    "g20.npz": "b20073646039453b5505f153e4d4f826c69ebf329ad1638aad70c4b83e08eb06",
+    "g21.npz": "fb49b38e7c9a70ed0b2a63438155412c143113ef5dc154c1c89217cd12898f54",
+    "g22.npz": "fba6f3f050d208ad2b1cf96f633aad18150d5e39bf033326c50c6d5f310cd085",
+    "g23.npz": "49d8689433ca8784d606ea4e4fd7468c32f6b3cea37e50faa9304ad3ac3b13d7",
+    "g24.npz": "7dbfa50be90b359dc72075d72a8488f3a17bba638ca073d18254b4bdbb08ca27",
+    "g25.npz": "c803e90378690477ce36c399c65c1ca8761fb8a18d3214e436a22db1f641ca04",
+    "g26.npz": "2875cdf2bd785ea9ca7871b180c3685da6af847ef1f33cb8cdceb93ef182231a",
+    "g27.npz": "cf2d4e5421d8128af007af066bfd6c1c64851b385645ae4afe8aeb3ff01cedd3"
+  },
+  "source_sha256": {
+    "output/dgp_pairwise_clipping_95_99_ratio_means/replication_results.csv.gz": "35871a44337e17d36ec3a32a33d864185cabae48fa90147abdbcbda8e0312292",
+    "output/jbes_u1011/final_independent_audit.json": "5127942081b4320209c6b01a467f1caccbc3b2e3592464bd5603aa42eeab0203",
+    "output/dgp_rollmse_r4/checkpoints/g01.csv": "cd550a5251abed7c53804fe1e51ac2415b1a1408d555a5bb752498b40812214c",
+    "output/jbes_u1011/j23/g01.csv": "afbf5c45cd5baee68ee79ec0940e382be3a866a2e1edb5780a22d632ce4727f5",
+    "output/dgp_rollmse_r4/checkpoints/g02.csv": "8b0a6a168363f83e704ab4537e7576775486d99dc5ffe3a1d49793838d06baaa",
+    "output/jbes_u1011/j23/g02.csv": "6cfd8b3eee7a9c880f7f4429e6f33c26639c03bd1bcdb60007e8322a83e48f95",
+    "output/dgp_rollmse_r4/checkpoints/g03.csv": "4a099fbc5f5ffd6e10dae18899b24165ff409268348bc7106beaabe795cb2729",
+    "output/jbes_u1011/j23/g03.csv": "e43a9f71651653d276a42769adc3711244483cab6b28ab60b6184c1c2f315967",
+    "output/dgp_rollmse_r4/checkpoints/g04.csv": "343be2b539f5e1a934e509f65908415ea0dff4b8af3077b4a40455e325766d54",
+    "output/jbes_u1011/j23/g04.csv": "c5243d1ce9debe758e65ee09ee2c00936e247c1a7abe6a894921e4b520ece746",
+    "output/dgp_rollmse_r4/checkpoints/g05.csv": "d33871596c8e0996737e066a23c7e7ece04ea20b7b8185e63440e03cad9c9351",
+    "output/jbes_u1011/j23/g05.csv": "1acac4ea004cbbf8d9118d205bc2d563dc9c3b246dbd0bfc007492681e6a2c22",
+    "output/dgp_rollmse_r4/checkpoints/g06.csv": "d957c96cd82df0d66033e0d8f00e6f76885159107a944839b0570ce0dd19a79f",
+    "output/jbes_u1011/j23/g06.csv": "f1555fcdc52233eb5172c2772ee6beb8c4e9034868af1a7bb2128eb1bd309ed9",
+    "output/dgp_rollmse_r4/checkpoints/g07.csv": "617ab5fd3d6a18a8fe700344a12474ed7940d9715ef335cb78409a0a13b7f52c",
+    "output/jbes_u1011/j23/g07.csv": "644672e5013828335cd948454027b238290a4ea8f36aeb638370ed875c4308ae",
+    "output/dgp_rollmse_r4/checkpoints/g08.csv": "3be5894c6e63e0c9c654065e54366925a53d76ffef1695681908159592c7e659",
+    "output/jbes_u1011/j23/g08.csv": "8eaf7a348e4c40f6be85bbffbe632df8458d5607b3cd9feddd2f9d16779386f8",
+    "output/dgp_rollmse_r4/checkpoints/g09.csv": "9a5b1c16e772fe4ee73d5f4b3579aed8f5c5c179cd536e6cf3f73a0950760896",
+    "output/jbes_u1011/j23/g09.csv": "8059eb60c20f08f9993f3430b06fa4dfb7319b0288a960a40a483e87368d7639",
+    "output/dgp_rollmse_r4/checkpoints/g10.csv": "23b93d8db9d2e44a50aa3d13280415a61a2c933d124a37336cbdce4b58c093ed",
+    "output/jbes_u1011/j23/g10.csv": "16c4686abe6ace8d9085b518511de8e48c527309b7f456fa8071c181f94d2481",
+    "output/dgp_rollmse_r4/checkpoints/g11.csv": "03ff2bc173b87e4fd08220aba4a98569d83976f43d8f76948dce6e0317d23786",
+    "output/jbes_u1011/j23/g11.csv": "2eca96cb676f29e5977630f9f0e36741bd4ce1d0ac4b9391720c699fd28b4c6a",
+    "output/dgp_rollmse_r4/checkpoints/g12.csv": "63384c5d3c6ad582591ffa077f3535c1898cc68672f84021cac231083c5e6cda",
+    "output/jbes_u1011/j23/g12.csv": "7b95f0aa9261378afe7bf8ab07b90502c75f8ac517a4d9baefcf78b612963668",
+    "output/dgp_rollmse_r4/checkpoints/g13.csv": "cbf97f1a56d9eb9ca99058d5b617898144e70fd4972f41e8c34977232d30913c",
+    "output/jbes_u1011/j23/g13.csv": "b04b4e8bd30ab98017124934bfc2c2c17805bbf716f631336783119480f4d5db",
+    "output/dgp_rollmse_r4/checkpoints/g14.csv": "245aa8dc7772da1608e8c47948adb71c7df67c112c7754b718ce3163f80f8568",
+    "output/jbes_u1011/j23/g14.csv": "8fc5b6e3185f74b45fd7250010110bd18299c8060122f14bb536c1cec5aeb1bd",
+    "output/dgp_rollmse_r4/checkpoints/g15.csv": "422e7a95e3c3246e017ece2d38994dc013e9036a9a76175ab57755742a3bdbe3",
+    "output/jbes_u1011/j23/g15.csv": "89fbce42763ae5770d13bacc8cca59f96bf2256ad8d026e40ab5a88067049a51",
+    "output/dgp_rollmse_r4/checkpoints/g16.csv": "4ecb43b5506190812da7788ec77d2ba908192dad77560667b488855f75ae94c7",
+    "output/jbes_u1011/j23/g16.csv": "508c2f63929370205d0a47636abde9360ccd434e801b68d1f574fb3ea7b9e4f0",
+    "output/dgp_rollmse_r4/checkpoints/g17.csv": "452ee14e054c898c7c014e373bee2491e1a46345c361e3bbba7cac787e09d4e9",
+    "output/jbes_u1011/j23/g17.csv": "dcdb2c3d346137d08c8f8bbd9ea15d5ed265e7b7dfce4244f2c7d851b18c79ea",
+    "output/dgp_rollmse_r4/checkpoints/g18.csv": "27fbd031491ecd5799da7b8f313e041bdf797d306dbf9578dd5382d20238d33c",
+    "output/jbes_u1011/j23/g18.csv": "23af475d3490ecd8ba4c7f67719dc97a1100053aaca98ba4ac3befbd64194464",
+    "output/dgp_rollmse_r4/checkpoints/g19.csv": "f4ac3b563f4d3ad6e57d562d911408184d6bb5154f21c311f82996ae9b86fd41",
+    "output/jbes_u1011/j23/g19.csv": "fb27bc81a007c6bc923513e3ef6b9ef0c1525c6a39f3053f0c6135407427f732",
+    "output/dgp_rollmse_r4/checkpoints/g20.csv": "467b1bd6439487ed1f77f527212a1fcd866b6aac1801063e7705df54360906df",
+    "output/jbes_u1011/j23/g20.csv": "a98ba7906c476a96fc32f762323081425ace3f8053114bdaee18d989549e7004",
+    "output/dgp_rollmse_r4/checkpoints/g21.csv": "957910ee5928fb3b347cd133133e6e6989b1e9c74a3b3136dec8acfff56ec6f0",
+    "output/jbes_u1011/j23/g21.csv": "c6611836c3d4c4a48d92ec57454c793765400fc0a536931906d1113ff6e528a7",
+    "output/dgp_rollmse_r4/checkpoints/g22.csv": "acd987934b50ec47ecf92699baace41e24667786e305f847d46d7353f25391e1",
+    "output/jbes_u1011/j23/g22.csv": "cb8b4c90dc732e7464daa6ade0b80a267770614fb8f07683ba40e81a2afe7480",
+    "output/dgp_rollmse_r4/checkpoints/g23.csv": "ef9c51210e588846ff835c35b35dd8c090562f2506ab0d244c740a4e793b8837",
+    "output/jbes_u1011/j23/g23.csv": "77c4e458429bdbd50ca1c7b5fc2bcddb09f396d52326f28af6cc70ae8a8d655a",
+    "output/dgp_rollmse_r4/checkpoints/g24.csv": "1caa312a0771cdb92af61b5072018678d7c3ddc47fb71c37648f107c0064f547",
+    "output/jbes_u1011/j23/g24.csv": "69e958e7ff11198005740c2773e46652a0764ecbe33c6159f1424a42a5e05092",
+    "output/dgp_rollmse_r4/checkpoints/g25.csv": "22cba1ba070a83d67e816919388c42a085f329852ffa76c5746d798765aafd4d",
+    "output/jbes_u1011/j23/g25.csv": "d71660ae512ac4a3d878f8cf62750eaa70fbdf7ca13b0468cd7ecf3406a37cfd",
+    "output/dgp_rollmse_r4/checkpoints/g26.csv": "6377bfd040a13389278162e8045fad88ecbca16577114ec9097c16224140bf1d",
+    "output/jbes_u1011/j23/g26.csv": "778c2b132088adc59f810eafa13c52b63d14bb700767600b1e6f34a3b71ecc09",
+    "output/dgp_rollmse_r4/checkpoints/g27.csv": "0c0a1fd30b0f3272055e0dfc82e67b285afb123cf1fc0d580cf5234d0d91d6c4",
+    "output/jbes_u1011/j23/g27.csv": "0d73ce23060a69be32f0b6248fb6e1655cba7e95e0b2ad024f4e2eebd42cebf9"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "training_sample": "1990Q1--2007Q4",
+  "training_n": 72,
+  "evaluation_sample": "2008Q1--2019Q4",
+  "evaluation_n": 48,
+  "pair_resamples": 20000,
+  "pair_seed": 20261001,
+  "quantile_method": "linear",
+  "definition": "Quantile of squared differences between independent resampled training observations.",
+  "squared_thresholds": {
+    "95": 0.00021414815480003523,
+    "99": 0.00042004993827411214
+  },
+  "raw_eta": 10000.0,
+  "raw_c0": 10000.0,
+  "scaled_eta": {
+    "95": 2.1414815480003524,
+    "99": 4.200499382741121
+  },
+  "scaled_c0": {
+    "95": 2.1414815480003524,
+    "99": 4.200499382741121
+  },
+  "reference_msfe": 4.701649578042202e-05
+}
